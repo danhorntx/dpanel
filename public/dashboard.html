@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPanel</title>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+
+<!-- ── Toast container ─────────────────────────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="app-shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">D/</div>
+      <span class="sidebar-logo-text">DPanel</span>
+      <span class="sidebar-logo-version">v1.0</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Overview</span>
+
+      <div class="nav-item active" data-section="dashboard">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+          <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+        </svg>
+        Dashboard
+      </div>
+
+      <span class="nav-section-label">Hosting</span>
+
+      <div class="nav-item" data-section="domains">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="8" cy="8" r="6.5"/>
+          <path d="M8 1.5C8 1.5 6 4 6 8s2 6.5 2 6.5M8 1.5C8 1.5 10 4 10 8s-2 6.5-2 6.5M1.5 8h13"/>
+        </svg>
+        Domains
+        <span class="nav-badge" id="domainCount">—</span>
+      </div>
+
+      <div class="nav-item" data-section="ssl">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 1L2 3.5V8c0 3.3 2.5 5.6 6 7 3.5-1.4 6-3.7 6-7V3.5L8 1z"/>
+        </svg>
+        SSL Certs
+      </div>
+
+      <span class="nav-section-label">Mail</span>
+
+      <div class="nav-item" data-section="mail">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+          <path d="M1 4.5l7 4.5 7-4.5"/>
+        </svg>
+        Mail
+      </div>
+
+      <span class="nav-section-label">System</span>
+
+      <div class="nav-item" data-section="logs">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 4h10M3 8h6M3 12h8"/>
+        </svg>
+        Logs
+      </div>
+
+      <div class="nav-item" data-section="terminal">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="2" width="14" height="12" rx="1.5"/>
+          <path d="M4 6l3 3-3 3M8 12h4"/>
+        </svg>
+        Terminal
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="logoutBtn" title="Click to logout">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="userName">admin</div>
+          <div class="user-role">Root access</div>
+        </div>
+        <svg style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M10 8H2M6 5l-3 3 3 3M12 4v8"/>
+        </svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Topbar ────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-breadcrumb">
+      <span>DPanel</span>
+      <span class="topbar-sep">/</span>
+      <span class="current" id="topbarSection">Dashboard</span>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-hostname" id="topbarHostname">loading...</span>
+      <span class="topbar-clock" id="topbarClock"></span>
+    </div>
+  </header>
+
+  <!-- ── Content ───────────────────────────────────────────────────────── -->
+  <main class="content-area">
+
+    <!-- ════════════════ DASHBOARD ════════════════ -->
+    <section class="page-section active" id="section-dashboard">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Dashboard</h2>
+          <p>System overview — refreshes every 10 seconds</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="window.dashboard.refresh()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="card-outer stat-card">
+          <div class="card-inner">
+            <div class="stat-label">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="8" rx="1"/><path d="M4 7h8M4 9h5"/></svg>
+              CPU Usage
+            </div>
+            <div class="stat-value" id="statCpu"><span class="skeleton" style="width:60px;height:32px;display:inline-block"></span></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="statCpuBar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="card-outer stat-card">
+          <div class="card-inner">
+            <div class="stat-label">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="10" rx="1"/><path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/></svg>
+              Memory
+            </div>
+            <div class="stat-value" id="statRam"><span class="skeleton" style="width:80px;height:32px;display:inline-block"></span></div>
+            <div class="stat-sub" id="statRamSub"></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="statRamBar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="card-outer stat-card">
+          <div class="card-inner">
+            <div class="stat-label">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="5" rx="6" ry="2.5"/><path d="M2 5v6c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V5"/><path d="M2 8c0 1.4 2.7 2.5 6 2.5S14 9.4 14 8"/></svg>
+              Disk
+            </div>
+            <div class="stat-value" id="statDisk"><span class="skeleton" style="width:60px;height:32px;display:inline-block"></span></div>
+            <div class="stat-sub" id="statDiskSub"></div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="statDiskBar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="card-outer stat-card">
+          <div class="card-inner">
+            <div class="stat-label">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l3 2"/></svg>
+              Uptime
+            </div>
+            <div class="stat-value" id="statUptime" style="font-size:1.4rem"><span class="skeleton" style="width:100px;height:28px;display:inline-block"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="page-header" style="margin-bottom:var(--space-4)">
+        <div class="page-header-left"><h3>Services</h3></div>
+      </div>
+      <div class="services-grid" id="servicesGrid">
+        <!-- populated by JS -->
+      </div>
+
+      <!-- Recent actions -->
+      <div class="page-header" style="margin-bottom:var(--space-4);margin-top:var(--space-8)">
+        <div class="page-header-left"><h3>Recent Actions</h3></div>
+      </div>
+      <div class="card-outer"><div class="card-inner" style="padding:var(--space-2)">
+        <div class="action-log" id="actionLog">
+          <div class="empty-state" style="padding:var(--space-6)">
+            <p class="text-sm text-muted">No actions logged yet.</p>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- ════════════════ DOMAINS ════════════════ -->
+    <section class="page-section" id="section-domains">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Domains</h2>
+          <p>Apache virtual host management</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="window.domains.openAddModal()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+          Add Domain
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Document Root</th>
+              <th>SSL</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="domainsTable">
+            <tr><td colspan="5"><div class="empty-state"><p>Loading domains...</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════ MAIL ════════════════ -->
+    <section class="page-section" id="section-mail">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Mail</h2>
+          <p>Mailboxes and forwarding rules</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="mailAddBtn">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+          Add
+        </button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="accounts" onclick="window.mail.switchTab('accounts', this)">Accounts</div>
+        <div class="tab" data-tab="forwards" onclick="window.mail.switchTab('forwards', this)">Forwards</div>
+      </div>
+
+      <div class="tab-panel active" id="tab-accounts">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Email</th><th>Quota</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="accountsTable"><tr><td colspan="3"><div class="empty-state"><p>Loading...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-forwards">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Source</th><th>Destination(s)</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="forwardsTable"><tr><td colspan="3"><div class="empty-state"><p>Loading...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ SSL ════════════════ -->
+    <section class="page-section" id="section-ssl">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>SSL Certificates</h2>
+          <p>Let's Encrypt and self-signed certificates</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2)">
+          <button class="btn btn-secondary btn-sm" onclick="window.ssl.renewAll()">Renew All</button>
+          <button class="btn btn-primary btn-sm" onclick="window.ssl.openRequestModal()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+            Request Cert
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Type</th>
+              <th>Issuer</th>
+              <th>Expiry</th>
+              <th>Days Left</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sslTable">
+            <tr><td colspan="6"><div class="empty-state"><p>Loading certificates...</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ════════════════ LOGS ════════════════ -->
+    <section class="page-section" id="section-logs">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Logs</h2>
+          <p>Live system and application logs</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <select class="input" id="logSource" style="width:auto" onchange="window.logs.load()">
+            <option value="panel">Panel Log</option>
+            <option value="apache_access">Apache Access</option>
+            <option value="apache_error">Apache Error</option>
+            <option value="mail">Mail Log</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="window.logs.load()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/></svg>
+            Refresh
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="window.logs.download()">Download</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:var(--space-4)">
+        <input type="text" class="input" id="logSearch" placeholder="Filter lines..." oninput="window.logs.filter(this.value)">
+      </div>
+
+      <div class="log-output" id="logOutput">Select a log source and click Refresh.</div>
+    </section>
+
+    <!-- ════════════════ TERMINAL ════════════════ -->
+    <section class="page-section" id="section-terminal">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Terminal</h2>
+          <p>Direct root shell access</p>
+        </div>
+      </div>
+      <div class="terminal-wrap">
+        <div class="terminal-warning">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 2L1 14h14L8 2z"/><path d="M8 6v4M8 12v.5"/>
+          </svg>
+          You are running as <strong>root</strong>. Every command executes immediately with full system access.
+        </div>
+        <div id="terminal-container"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ════════════════ MODALS ════════════════ -->
+
+<!-- Add Domain modal -->
+<div class="modal-backdrop" id="modalAddDomain">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add Domain</h3>
+      <button class="modal-close" onclick="window.domains.closeModal('modalAddDomain')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Domain Name</label>
+        <input type="text" class="input mono" id="addDomainName" placeholder="example.com">
+      </div>
+      <div class="form-group">
+        <label>Document Root</label>
+        <input type="text" class="input mono" id="addDomainRoot" placeholder="/var/www/example.com/public_html (auto-created if blank)">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="addDomainCreateDir" checked>
+        <label for="addDomainCreateDir">Create document root directory if it doesn't exist</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.domains.closeModal('modalAddDomain')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.domains.add()">Create Vhost</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- View Config modal -->
+<div class="modal-backdrop" id="modalViewConfig">
+  <div class="modal-outer" style="max-width:640px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Apache Config — <span id="configDomainName"></span></h3>
+      <button class="modal-close" onclick="window.domains.closeModal('modalViewConfig')">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea class="input mono" id="configContent" rows="16" style="resize:vertical;line-height:1.6"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.domains.closeModal('modalViewConfig')">Close</button>
+      <button class="btn btn-primary" onclick="window.domains.saveConfig()">Save Config</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Add Mail Account modal -->
+<div class="modal-backdrop" id="modalAddAccount">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add Mail Account</h3>
+      <button class="modal-close" onclick="window.mail.closeModal('modalAddAccount')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" class="input" id="addAccountEmail" placeholder="user@example.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" class="input" id="addAccountPassword" placeholder="Minimum 8 characters">
+      </div>
+      <div class="form-group">
+        <label>Quota</label>
+        <input type="text" class="input" id="addAccountQuota" placeholder="1G (e.g. 500M, 2G)">
+        <span class="field-hint">Leave blank for 1G default</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.mail.closeModal('modalAddAccount')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.mail.addAccount()">Create Account</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Add Forward modal -->
+<div class="modal-backdrop" id="modalAddForward">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add Mail Forward</h3>
+      <button class="modal-close" onclick="window.mail.closeModal('modalAddForward')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Source Address</label>
+        <input type="email" class="input" id="addForwardSource" placeholder="info@example.com">
+      </div>
+      <div class="form-group">
+        <label>Forward To</label>
+        <input type="text" class="input" id="addForwardDests" placeholder="you@gmail.com, other@example.com">
+        <span class="field-hint">Separate multiple addresses with commas</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.mail.closeModal('modalAddForward')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.mail.addForward()">Add Forward</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Request SSL modal -->
+<div class="modal-backdrop" id="modalRequestSSL">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Request SSL Certificate</h3>
+      <button class="modal-close" onclick="window.ssl.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Domain(s)</label>
+        <input type="text" class="input mono" id="sslDomains" placeholder="example.com, www.example.com">
+        <span class="field-hint">Comma-separated. Domain must point to this server.</span>
+      </div>
+      <div class="form-group">
+        <label>Webroot Path</label>
+        <input type="text" class="input mono" id="sslWebroot" placeholder="/var/www/example.com/public_html">
+        <span class="field-hint">Directory served at the domain's document root</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.ssl.closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="sslRequestBtn" onclick="window.ssl.request()">Request Certificate</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Change Password modal -->
+<div class="modal-backdrop" id="modalChangePassword">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Change Password</h3>
+      <button class="modal-close" onclick="window.mail.closeModal('modalChangePassword')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" class="input" id="changePasswordValue" placeholder="New password">
+      </div>
+      <input type="hidden" id="changePasswordEmail">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.mail.closeModal('modalChangePassword')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.mail.changePassword()">Update Password</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- JS modules -->
+<script src="/js/api.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/domains.js"></script>
+<script src="/js/mail.js"></script>
+<script src="/js/ssl.js"></script>
+<script src="/js/logs.js"></script>
+<script src="/js/terminal.js"></script>
+
+<script>
+// ── Navigation ────────────────────────────────────────────────────────────────
+const navItems = document.querySelectorAll('.nav-item[data-section]');
+const sections = document.querySelectorAll('.page-section');
+const topbarSection = document.getElementById('topbarSection');
+const sectionNames = {
+  dashboard: 'Dashboard', domains: 'Domains', mail: 'Mail',
+  ssl: 'SSL Certs', logs: 'Logs', terminal: 'Terminal'
+};
+
+function navigate(sectionId) {
+  navItems.forEach(n => n.classList.toggle('active', n.dataset.section === sectionId));
+  sections.forEach(s => {
+    const active = s.id === 'section-' + sectionId;
+    s.classList.toggle('active', active);
+  });
+  topbarSection.textContent = sectionNames[sectionId] || sectionId;
+  // Lazy-load section data
+  if (sectionId === 'domains') window.domains.load();
+  if (sectionId === 'mail')    window.mail.loadAll();
+  if (sectionId === 'ssl')     window.ssl.load();
+  if (sectionId === 'logs')    window.logs.load();
+  if (sectionId === 'terminal') window.terminal.init();
+}
+
+navItems.forEach(n => n.addEventListener('click', () => navigate(n.dataset.section)));
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST' });
+  window.location.href = '/';
+});
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('topbarClock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Toast system ──────────────────────────────────────────────────────────────
+window.toast = function(type, title, msg) {
+  const icons = { success: '✓', error: '✕', warning: '⚠' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type] || '·'}</span>
+    <div class="toast-content"><div class="toast-title">${title}</div>${msg ? `<div class="toast-msg">${msg}</div>` : ''}</div>`;
+  document.getElementById('toastContainer').appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('show')); });
+  setTimeout(() => {
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 400);
+  }, 4000);
+};
+
+// ── Spotlight effect on cards ─────────────────────────────────────────────────
+document.addEventListener('mousemove', e => {
+  document.querySelectorAll('.card-outer').forEach(card => {
+    const rect = card.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
+    const y = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
+    card.style.setProperty('--mx', x + '%');
+    card.style.setProperty('--my', y + '%');
+  });
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.dashboard.init();
+</script>
+</body>
+</html>
