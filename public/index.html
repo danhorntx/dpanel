@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPanel — Login</title>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <style>
+    .login-form { display: flex; flex-direction: column; }
+    .login-error {
+      background: var(--accent-red-dim);
+      border: 1px solid rgba(247,95,95,0.25);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-size: 0.875rem;
+      color: var(--accent-red);
+      margin-bottom: var(--space-5);
+      display: none;
+    }
+    .login-error.show { display: block; animation: fadeUp 0.2s var(--ease-out-expo); }
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      width: 15px; height: 15px;
+    }
+    .input-with-icon { padding-left: 36px; }
+    .login-footer {
+      margin-top: var(--space-6);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-bg"></div>
+
+  <div class="login-shell">
+    <div class="login-card-outer">
+      <div class="login-card-inner">
+
+        <div class="login-logo">
+          <div class="login-logo-mark">D/</div>
+          <div>
+            <div class="login-title">DPanel</div>
+            <div class="login-subtitle">Server Control Panel</div>
+          </div>
+        </div>
+
+        <div class="login-error" id="loginError"></div>
+
+        <form class="login-form" id="loginForm" autocomplete="off">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <div class="input-wrap">
+              <svg class="input-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+              </svg>
+              <input type="text" id="username" name="username" class="input input-with-icon"
+                     placeholder="admin" autocomplete="username" required autofocus>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-wrap">
+              <svg class="input-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="7" width="10" height="8" rx="1.5"/>
+                <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
+                <circle cx="8" cy="11" r="1" fill="currentColor" stroke="none"/>
+              </svg>
+              <input type="password" id="password" name="password" class="input input-with-icon"
+                     placeholder="••••••••" autocomplete="current-password" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="loginBtn" style="margin-top:var(--space-2);justify-content:center;">
+            Sign in
+          </button>
+        </form>
+
+        <div class="login-footer">
+          DPanel v1.0 &nbsp;·&nbsp; Self-hosted &nbsp;·&nbsp; <span style="font-family:var(--font-mono)">:8080</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const btn  = document.getElementById('loginBtn');
+    const err  = document.getElementById('loginError');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      err.classList.remove('show');
+      btn.classList.add('loading');
+      btn.textContent = '';
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: form.username.value.trim(),
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = '/dashboard';
+        } else {
+          err.textContent = data.error || 'Login failed';
+          err.classList.add('show');
+          btn.classList.remove('loading');
+          btn.textContent = 'Sign in';
+          form.password.value = '';
+          form.password.focus();
+        }
+      } catch (_) {
+        err.textContent = 'Could not reach the server.';
+        err.classList.add('show');
+        btn.classList.remove('loading');
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

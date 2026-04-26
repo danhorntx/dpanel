@@ -1,0 +1,26 @@
+[
+  {
+    "domain": "danhorntx.com",
+    "docRoot": "/var/www/danhorntx.com/public_html",
+    "username": "danhorntx_deploy",
+    "allowShell": false,
+    "hasSshKey": false,
+    "created": "2026-04-26T01:29:26.816Z"
+  },
+  {
+    "domain": "sessions.danhorntx.com",
+    "docRoot": "/var/www/sessions.danhorntx.com/public_html",
+    "username": "sessionsdanhorntx_deploy",
+    "allowShell": false,
+    "hasSshKey": false,
+    "created": "2026-04-26T02:16:29.397Z"
+  },
+  {
+    "domain": "sugarpopstx.com",
+    "docRoot": "/var/www/sugarpopstx.com/public_html",
+    "username": "sugarpopstx_deploy",
+    "allowShell": false,
+    "hasSshKey": false,
+    "created": "2026-04-26T07:20:37.307Z"
+  }
+]

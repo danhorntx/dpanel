@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPanel Webmail</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    :root { --sidebar-w: 220px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); }
+
+    /* ── Login screen ── */
+    #loginScreen {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100vh; background: var(--bg);
+    }
+    #loginScreen .login-card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 2rem; width: 360px;
+      box-shadow: var(--shadow-lg);
+    }
+    #loginScreen h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; }
+    #loginScreen .logo { font-weight: 800; color: var(--primary); margin-bottom: .25rem; font-size: 1.5rem; }
+
+    /* ── App layout ── */
+    #app { display: none; width: 100%; height: 100vh; }
+    #app.visible { display: flex; }
+
+    /* ── Folder sidebar ── */
+    #folderSidebar {
+      width: var(--sidebar-w); flex-shrink: 0;
+      background: var(--sidebar-bg); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .wm-brand { padding: 1rem 1rem .75rem; font-weight: 800; font-size: 1rem; color: var(--primary); border-bottom: 1px solid var(--border); }
+    .wm-brand span { color: var(--text-secondary); font-weight: 400; font-size: .75rem; display: block; margin-top: .1rem; }
+    #composeBtn { margin: .75rem; }
+    .folder-list { padding: .25rem 0; flex: 1; }
+    .folder-item {
+      padding: .5rem 1rem; cursor: pointer; font-size: .875rem;
+      display: flex; align-items: center; gap: .5rem; border-radius: 6px; margin: 0 .5rem .1rem;
+      transition: background .15s;
+    }
+    .folder-item:hover  { background: var(--hover-bg); }
+    .folder-item.active { background: var(--primary-muted); color: var(--primary); font-weight: 600; }
+    .folder-icon { font-size: 1rem; width: 1.25rem; text-align: center; }
+
+    /* ── Message list ── */
+    #msgListPane {
+      width: 320px; flex-shrink: 0; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .pane-header {
+      padding: .75rem 1rem; border-bottom: 1px solid var(--border);
+      font-weight: 600; font-size: .875rem; display: flex; align-items: center; justify-content: space-between;
+      min-height: 48px;
+    }
+    #msgList { flex: 1; overflow-y: auto; }
+    .msg-item {
+      padding: .75rem 1rem; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background .15s;
+    }
+    .msg-item:hover   { background: var(--hover-bg); }
+    .msg-item.active  { background: var(--primary-muted); }
+    .msg-item.unread  .msg-from { font-weight: 700; }
+    .msg-from  { font-size: .875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .msg-subj  { font-size: .8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .15rem; }
+    .msg-date  { font-size: .75rem; color: var(--text-secondary); float: right; margin-left: .5rem; flex-shrink: 0; }
+    .msg-row1  { display: flex; align-items: baseline; justify-content: space-between; }
+    .unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-right: .4rem; }
+
+    /* ── Message reader ── */
+    #msgReader {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+    #readerHeader {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; gap: 1rem;
+    }
+    #readerHeader .hdr-info { flex: 1; min-width: 0; }
+    #readerSubject { font-size: 1.125rem; font-weight: 700; margin-bottom: .25rem; }
+    #readerMeta    { font-size: .8125rem; color: var(--text-secondary); }
+    #readerBody    { flex: 1; overflow-y: auto; padding: 1.25rem; }
+    #readerFrame   { width: 100%; border: none; background: #fff; border-radius: var(--radius); min-height: 400px; }
+    #readerText    { white-space: pre-wrap; font-size: .875rem; line-height: 1.6; font-family: var(--font-mono); }
+    #emptyReader   { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: .9rem; }
+
+    /* ── Compose modal ── */
+    .wm-modal-bg {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      z-index: 200; align-items: flex-end; justify-content: flex-end; padding: 1.5rem;
+    }
+    .wm-modal-bg.open { display: flex; }
+    .wm-compose-card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      width: 540px; max-height: 80vh; display: flex; flex-direction: column;
+      box-shadow: var(--shadow-lg);
+    }
+    .wm-compose-header { padding: .75rem 1rem; border-bottom: 1px solid var(--border); font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+    .wm-compose-body   { padding: 1rem; display: flex; flex-direction: column; gap: .75rem; flex: 1; }
+    .wm-compose-body textarea { flex: 1; min-height: 200px; resize: none; }
+
+    /* Pagination */
+    .pager { display: flex; align-items: center; gap: .5rem; }
+    .pager button { padding: .25rem .5rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login screen ──────────────────────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="logo">DPanel</div>
+    <h2>Webmail</h2>
+    <form id="loginForm" onsubmit="wm.login(event)">
+      <div class="form-group">
+        <label>Email address</label>
+        <input id="wmEmail" type="email" class="input" placeholder="you@example.com" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="wmPassword" type="password" class="input" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <div id="loginError" class="text-red text-sm" style="display:none;margin-bottom:.75rem"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">Sign in</button>
+    </form>
+    <p style="margin-top:1rem;font-size:.8125rem;text-align:center">
+      <a href="/dashboard" style="color:var(--primary)">← Back to DPanel</a>
+    </p>
+  </div>
+</div>
+
+<!-- ── App ────────────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <!-- Folder sidebar -->
+  <div id="folderSidebar">
+    <div class="wm-brand">DPanel Mail<span id="wmAccountLabel"></span></div>
+    <button class="btn btn-primary btn-sm" id="composeBtn" onclick="wm.openCompose()">✏ Compose</button>
+    <div class="folder-list" id="folderList">
+      <!-- populated by JS -->
+    </div>
+    <div style="padding:.75rem;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="wm.logout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- Message list -->
+  <div id="msgListPane">
+    <div class="pane-header">
+      <span id="currentMailboxLabel">INBOX</span>
+      <div class="pager">
+        <button class="btn btn-ghost btn-xs" id="prevPage" onclick="wm.prevPage()">‹</button>
+        <span id="pageLabel" class="text-sm text-secondary"></span>
+        <button class="btn btn-ghost btn-xs" id="nextPage" onclick="wm.nextPage()">›</button>
+      </div>
+    </div>
+    <div id="msgList"></div>
+  </div>
+
+  <!-- Message reader -->
+  <div id="msgReader">
+    <div id="emptyReader">Select a message to read</div>
+    <div id="readerContent" style="display:none;height:100%;display:flex;flex-direction:column">
+      <div id="readerHeader">
+        <div class="hdr-info">
+          <div id="readerSubject"></div>
+          <div id="readerMeta"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" id="replyBtn" onclick="wm.reply()">Reply</button>
+          <button class="btn btn-danger btn-sm" id="deleteBtn" onclick="wm.deleteMsg()">Delete</button>
+        </div>
+      </div>
+      <div id="readerBody">
+        <div id="readerText"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Compose modal ──────────────────────────────────────────────────────────── -->
+<div class="wm-modal-bg" id="composeModal">
+  <div class="wm-compose-card">
+    <div class="wm-compose-header">
+      <span>New Message</span>
+      <button class="btn btn-ghost btn-xs" onclick="wm.closeCompose()">✕</button>
+    </div>
+    <div class="wm-compose-body">
+      <input id="composeTo"      class="input" placeholder="To">
+      <input id="composeSubject" class="input" placeholder="Subject">
+      <textarea id="composeBody" class="input" placeholder="Message body…"></textarea>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="wm.closeCompose()">Cancel</button>
+        <button class="btn btn-primary" id="sendBtn" onclick="wm.send()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FOLDER_ICONS = {
+  INBOX:   '📥', Sent: '📤', Drafts: '📝', Trash: '🗑️', Spam: '⚠️', Junk: '⚠️', Archive: '📦',
+};
+
+const wm = (() => {
+  let currentMailbox  = 'INBOX';
+  let currentPage     = 1;
+  let totalMessages   = 0;
+  let perPage         = 25;
+  let currentUid      = null;
+  let replyData       = null;
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  async function init() {
+    const res = await fetch('/webmail/api/me');
+    const data = await res.json();
+    if (data.success) {
+      showApp(data.email);
+    }
+    // else stay on login screen
+  }
+
+  async function login(e) {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    document.getElementById('loginError').style.display = 'none';
+
+    const res  = await fetch('/webmail/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:    document.getElementById('wmEmail').value,
+        password: document.getElementById('wmPassword').value,
+      }),
+    });
+    const data = await res.json();
+    btn.classList.remove('loading'); btn.disabled = false;
+    if (data.success) {
+      showApp(data.email);
+    } else {
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+    }
+  }
+
+  function showApp(email) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    document.getElementById('wmAccountLabel').textContent = email;
+    loadFolders();
+    loadMessages();
+  }
+
+  async function logout() {
+    await fetch('/webmail/api/logout', { method: 'POST' });
+    location.reload();
+  }
+
+  // ── Folders ───────────────────────────────────────────────────────────────
+  async function loadFolders() {
+    const res  = await fetch('/webmail/api/mailboxes');
+    const data = await res.json();
+    const list = document.getElementById('folderList');
+    if (!data.success) { list.innerHTML = '<p class="text-red text-sm" style="padding:.5rem 1rem">Failed</p>'; return; }
+
+    // Prefer common folders first
+    const PREFERRED = ['INBOX','Drafts','Sent','Trash','Spam','Junk','Archive'];
+    const sorted = [...data.data].sort((a, b) => {
+      const ai = PREFERRED.indexOf(a.name); const bi = PREFERRED.indexOf(b.name);
+      if (ai > -1 && bi > -1) return ai - bi;
+      if (ai > -1) return -1; if (bi > -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    list.innerHTML = sorted.map(m => `
+      <div class="folder-item${m.path === currentMailbox ? ' active' : ''}" onclick="wm.switchFolder('${m.path}', this)">
+        <span class="folder-icon">${FOLDER_ICONS[m.name] || '📁'}</span>
+        ${m.name}
+      </div>`).join('');
+  }
+
+  function switchFolder(path, el) {
+    currentMailbox = path;
+    currentPage    = 1;
+    currentUid     = null;
+    document.querySelectorAll('.folder-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('currentMailboxLabel').textContent = path;
+    hideReader();
+    loadMessages();
+  }
+
+  // ── Messages ──────────────────────────────────────────────────────────────
+  async function loadMessages() {
+    const list = document.getElementById('msgList');
+    list.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text-secondary)">Loading…</div>';
+    const res  = await fetch(`/webmail/api/messages?mailbox=${encodeURIComponent(currentMailbox)}&page=${currentPage}`);
+    const data = await res.json();
+    if (!data.success) {
+      list.innerHTML = `<div style="padding:1rem;color:var(--red)">${data.error}</div>`;
+      return;
+    }
+    const { messages, total } = data.data;
+    totalMessages = total;
+    document.getElementById('pageLabel').textContent = total > 0 ? `${currentPage}/${Math.ceil(total/perPage)}` : '';
+    document.getElementById('prevPage').disabled = currentPage <= 1;
+    document.getElementById('nextPage').disabled = currentPage >= Math.ceil(total/perPage);
+
+    if (!messages.length) {
+      list.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-secondary)">No messages</div>';
+      return;
+    }
+    list.innerHTML = messages.map(m => `
+      <div class="msg-item${m.seen ? '' : ' unread'}${m.uid === currentUid ? ' active' : ''}" onclick="wm.openMsg(${m.uid})">
+        <div class="msg-row1">
+          <div style="display:flex;align-items:center;min-width:0">
+            ${!m.seen ? '<div class="unread-dot"></div>' : '<div style="width:7px;margin-right:.4rem"></div>'}
+            <span class="msg-from">${escHtml(m.from)}</span>
+          </div>
+          <span class="msg-date">${fmtDate(m.date)}</span>
+        </div>
+        <div class="msg-subj">${escHtml(m.subject)}</div>
+      </div>`).join('');
+  }
+
+  function prevPage() { if (currentPage > 1) { currentPage--; loadMessages(); } }
+  function nextPage() { if (currentPage < Math.ceil(totalMessages/perPage)) { currentPage++; loadMessages(); } }
+
+  async function openMsg(uid) {
+    currentUid = uid;
+    // Mark active
+    document.querySelectorAll('.msg-item').forEach(el => el.classList.toggle('active', parseInt(el.getAttribute('onclick')?.match(/\d+/)?.[0]) === uid));
+    showReaderLoading();
+    const res  = await fetch(`/webmail/api/messages/${uid}?mailbox=${encodeURIComponent(currentMailbox)}`);
+    const data = await res.json();
+    if (!data.success) { return; }
+    const msg  = data.data;
+    replyData  = msg;
+    document.getElementById('readerSubject').textContent = msg.subject;
+    document.getElementById('readerMeta').textContent    = `From: ${msg.from}  ·  ${msg.to ? 'To: ' + msg.to + '  ·  ' : ''}${fmtDateFull(msg.date)}`;
+    const bodyEl = document.getElementById('readerText');
+    if (msg.html) {
+      // Sandbox HTML in a blob URL srcdoc
+      bodyEl.innerHTML = `<iframe id="readerFrame" sandbox="allow-same-origin" srcdoc="${escAttr(msg.html)}" onload="this.style.height=(this.contentDocument.body.scrollHeight+32)+'px'" style="width:100%;border:none;min-height:200px"></iframe>`;
+    } else {
+      bodyEl.textContent = msg.text;
+    }
+    showReader();
+    // Refresh list (to update unread dot)
+    loadMessages();
+  }
+
+  async function deleteMsg() {
+    if (!currentUid) return;
+    const res  = await fetch(`/webmail/api/messages/${currentUid}?mailbox=${encodeURIComponent(currentMailbox)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) { currentUid = null; hideReader(); loadMessages(); }
+  }
+
+  // ── Compose / Reply ───────────────────────────────────────────────────────
+  function openCompose(opts = {}) {
+    document.getElementById('composeTo').value      = opts.to      || '';
+    document.getElementById('composeSubject').value = opts.subject || '';
+    document.getElementById('composeBody').value    = opts.body    || '';
+    document.getElementById('composeModal').classList.add('open');
+    document.getElementById('composeTo').focus();
+  }
+  function closeCompose() { document.getElementById('composeModal').classList.remove('open'); }
+
+  function reply() {
+    if (!replyData) return;
+    openCompose({
+      to:      replyData.from,
+      subject: replyData.subject.startsWith('Re:') ? replyData.subject : 'Re: ' + replyData.subject,
+      body:    `\n\n--- Original message ---\nFrom: ${replyData.from}\n${replyData.text || ''}`,
+    });
+  }
+
+  async function send() {
+    const to      = document.getElementById('composeTo').value.trim();
+    const subject = document.getElementById('composeSubject').value.trim();
+    const text    = document.getElementById('composeBody').value;
+    if (!to || !subject) return alert('To and subject are required');
+    const btn = document.getElementById('sendBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    const res  = await fetch('/webmail/api/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, text }),
+    });
+    const data = await res.json();
+    btn.classList.remove('loading'); btn.disabled = false;
+    if (data.success) { closeCompose(); alert('Message sent!'); }
+    else alert('Error: ' + data.error);
+  }
+
+  // ── Reader helpers ────────────────────────────────────────────────────────
+  function showReaderLoading() {
+    document.getElementById('emptyReader').style.display    = 'none';
+    document.getElementById('readerContent').style.display  = 'flex';
+    document.getElementById('readerText').innerHTML = '<div style="padding:1rem;color:var(--text-secondary)">Loading…</div>';
+  }
+  function showReader() {
+    document.getElementById('emptyReader').style.display   = 'none';
+    document.getElementById('readerContent').style.display = 'flex';
+  }
+  function hideReader() {
+    document.getElementById('emptyReader').style.display   = '';
+    document.getElementById('readerContent').style.display = 'none';
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────────────
+  function escHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escAttr(s) { return escHtml(s).replace(/"/g, '&quot;'); }
+  function fmtDate(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    const now = new Date();
+    if (dt.toDateString() === now.toDateString()) return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  function fmtDateFull(d) { return d ? new Date(d).toLocaleString() : ''; }
+
+  return { init, login, logout, switchFolder, loadMessages, prevPage, nextPage, openMsg, deleteMsg, reply, openCompose, closeCompose, send };
+})();
+
+wm.init();
+</script>
+</body>
+</html>
