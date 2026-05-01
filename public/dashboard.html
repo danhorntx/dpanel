@@ -13,6 +13,202 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- Chart.js (DAnalytics) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- ── DAnalytics component styles + print stylesheet ───────────────────── -->
+  <style>
+    /* ── Bar-row: shared layout for pages / devices / browsers / geo / refs ──── */
+    .a-bar-row {
+      display: grid;
+      /* rank · label · bar · pct · count */
+      grid-template-columns: 22px 1fr 110px 38px 52px;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: background .12s;
+    }
+    .a-bar-row:last-child { border-bottom: none; }
+    .a-bar-row:hover { background: rgba(255,255,255,0.015); border-radius: 6px; }
+
+    /* Rows without a rank column */
+    .a-bar-row.no-rank { grid-template-columns: 1fr 110px 38px 52px; }
+
+    .a-bar-rank {
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .a-bar-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+    .a-bar-label {
+      font-size: .8125rem;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .a-bar-track {
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 100px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .a-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 100px;
+      transition: width .45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .a-bar-pct {
+      font-size: .72rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-align: right;
+    }
+    .a-bar-count {
+      font-size: .8125rem;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      text-align: right;
+      font-weight: 500;
+    }
+
+    /* Breakdown rows (devices/browsers/OS) — rank is replaced by a colored dot */
+    .a-bar-row .a-bar-dot + .a-bar-label { padding-left: 0; }
+
+    /* ── Geo rows (clickable) ─────────────────────────────────────────────────── */
+    .a-geo-row { cursor: pointer; }
+    .a-geo-row:hover .a-bar-label { color: var(--text-primary); }
+    .a-geo-row:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+    /* ── Source list (below doughnut) ────────────────────────────────────────── */
+    .a-src-row {
+      display: grid;
+      grid-template-columns: 120px 1fr 90px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .a-src-row:last-child { border-bottom: none; }
+    .a-src-left { display: flex; align-items: center; gap: 8px; }
+    .a-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .a-src-name { font-size: .8125rem; color: var(--text-secondary); }
+    .a-src-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 100px; overflow: hidden; }
+    .a-src-meta { display: flex; align-items: center; justify-content: flex-end; gap: 10px; font-family: var(--font-mono); }
+    .a-src-pct { font-size: .72rem; color: var(--text-muted); }
+    .a-src-count { font-size: .8125rem; color: var(--text-primary); font-weight: 500; min-width: 36px; text-align: right; }
+
+    /* ── Traffic classification ───────────────────────────────────────────────── */
+    .a-class-grid { display: flex; flex-direction: column; gap: 12px; }
+    .a-class-row { display: grid; grid-template-columns: 130px 1fr 100px; align-items: center; gap: 12px; }
+    .a-class-label { display: flex; align-items: center; gap: 8px; font-size: .8125rem; color: var(--text-secondary); font-weight: 500; }
+    .a-class-meta { display: flex; justify-content: flex-end; gap: 12px; font-family: var(--font-mono); font-size: .8125rem; }
+
+    /* ── Stat cards ──────────────────────────────────────────────────────────── */
+    .a-stat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .a-stat-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    }
+    .a-type-badge {
+      font-size: .65rem; font-weight: 600; border-radius: 5px; padding: 2px 7px;
+      letter-spacing: .01em;
+    }
+    .a-stat-value {
+      font-size: 2rem; font-weight: 700; letter-spacing: -0.05em;
+      color: var(--text-primary); line-height: 1; margin-bottom: 4px;
+    }
+    .a-stat-label {
+      font-size: .8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px;
+    }
+    .a-stat-sub { font-size: .7rem; color: var(--text-muted); }
+
+    /* ── Analytics 2-column grid ─────────────────────────────────────────────── */
+    .a-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    .a-grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    @media (max-width: 1100px) { .a-grid-3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 860px)  { .a-grid-2, .a-grid-3 { grid-template-columns: 1fr; } }
+
+    /* ── Analytics 5-card stat row ───────────────────────────────────────────── */
+    .a-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    @media (max-width: 1200px) { .a-stats-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px)  { .a-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* ── Inline preset / granularity button groups ───────────────────────────── */
+    .a-btn-group {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: 3px;
+    }
+    .a-btn-group .btn-xs {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      border-radius: var(--radius-sm);
+      transition: all var(--duration-fast);
+    }
+    .a-btn-group .btn-xs:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .a-btn-group .btn-xs.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(79,142,247,.4);
+    }
+
+    /* ── Chart header total label ─────────────────────────────────────────────── */
+    .a-chart-total {
+      font-family: var(--font-mono);
+      font-size: .8125rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Print / PDF export ──────────────────────────────────────────────────── */
+    #analyticsPrintHeader { display: none; }
+
+    @media print {
+      .sidebar, .topbar, .sidebar-expand-tab, .toast-container,
+      .modal-backdrop { display: none !important; }
+      .app-shell { display: block !important; }
+      .content-area { margin: 0 !important; padding: 0 !important; }
+      .page-section { display: none !important; }
+      #section-analytics { display: block !important; }
+      #analyticsPrintHeader { display: block !important; margin-bottom: 24px; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .a-grid-2, .a-grid-3 { grid-template-columns: 1fr 1fr; }
+      .a-stats-grid { grid-template-columns: repeat(5, 1fr); }
+      .card-outer { break-inside: avoid; }
+      .page-header .btn, #analyticsRealtime, #analyticsPrintHide { display: none !important; }
+    }
+  </style>
 </head>
 <body>
 
@@ -29,76 +225,329 @@
       <span class="sidebar-logo-version">v1.0</span>
     </div>
 
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Overview</span>
+    <!-- [FEATURE] nav now has role + label for screen readers -->
+    <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
 
-      <div class="nav-item active" data-section="dashboard">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
-          <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+      <!-- ── [NEW] Sidebar search ──────────────────────────────────────────── -->
+      <div class="nav-search-wrap" role="search">
+        <!-- magnifier icon -->
+        <svg class="nav-search-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"
+             stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5l3.5 3.5"/>
         </svg>
-        Dashboard
+        <input class="nav-search-input" id="sidebarSearch" type="search"
+               placeholder="Filter…" aria-label="Filter navigation items"
+               autocomplete="off" spellcheck="false">
+        <!-- custom clear button (replaces browser's native one) -->
+        <button class="nav-search-clear" id="sidebarSearchClear"
+                aria-label="Clear search" tabindex="-1" hidden>
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none"
+               stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path d="M2 2l12 12M14 2L2 14"/>
+          </svg>
+        </button>
       </div>
 
-      <span class="nav-section-label">Hosting</span>
-
-      <div class="nav-item" data-section="domains">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="8" cy="8" r="6.5"/>
-          <path d="M8 1.5C8 1.5 6 4 6 8s2 6.5 2 6.5M8 1.5C8 1.5 10 4 10 8s-2 6.5-2 6.5M1.5 8h13"/>
+      <!-- ── [NEW] Collapse-all / Expand-all toggle ─────────────────────────── -->
+      <button class="nav-collapseall-btn" id="navCollapseAllBtn"
+              aria-label="Collapse all categories">
+        <!-- icon: two downward chevrons (collapse state) -->
+        <svg class="nav-collapseall-icon" width="10" height="10" viewBox="0 0 16 16"
+             fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <!-- upper chevron -->
+          <path d="M3 4l5 4 5-4"/>
+          <!-- lower chevron -->
+          <path d="M3 9l5 4 5-4"/>
         </svg>
-        Domains
-        <span class="nav-badge" id="domainCount">—</span>
+        <span id="navCollapseAllLabel">Collapse all</span>
+      </button>
+
+      <!-- ── [NEW] Overview ─────────────────────────────────────────────────── -->
+      <!-- Each nav-group wraps one category label + its items for collapse -->
+      <div class="nav-group" data-group="overview">
+        <button class="nav-group-btn" id="navGroupBtn-overview"
+                aria-expanded="true" aria-controls="navGroupItems-overview">
+          Overview
+          <!-- chevron rotates –90° when collapsed via .is-collapsed -->
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <!-- grid-template-rows transition animates height without JS measurement -->
+        <div class="nav-group-items" id="navGroupItems-overview" role="list">
+          <div class="nav-group-inner">
+            <!-- data-label is the clean match target, free of badge text -->
+            <div class="nav-item active" data-section="dashboard" data-label="Dashboard" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+                <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+              </svg>
+              Dashboard
+            </div>
+            <div class="nav-item" data-section="analytics" data-label="DAnalytics" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 14V8M6 14V2M10 14V6M14 14V4"/>
+              </svg>
+              DAnalytics
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="nav-item" data-section="ssl">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M8 1L2 3.5V8c0 3.3 2.5 5.6 6 7 3.5-1.4 6-3.7 6-7V3.5L8 1z"/>
-        </svg>
-        SSL Certs
+      <!-- ── [NEW] Hosting ──────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="hosting">
+        <button class="nav-group-btn" id="navGroupBtn-hosting"
+                aria-expanded="true" aria-controls="navGroupItems-hosting">
+          Hosting
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-hosting" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="domains" data-label="Domains" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="6.5"/>
+                <path d="M8 1.5C8 1.5 6 4 6 8s2 6.5 2 6.5M8 1.5C8 1.5 10 4 10 8s-2 6.5-2 6.5M1.5 8h13"/>
+              </svg>
+              Domains
+              <span class="nav-badge" id="domainCount">—</span>
+            </div>
+            <div class="nav-item" data-section="ssl" data-label="SSL Certs" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M8 1L2 3.5V8c0 3.3 2.5 5.6 6 7 3.5-1.4 6-3.7 6-7V3.5L8 1z"/>
+              </svg>
+              SSL Certs
+            </div>
+            <div class="nav-item" data-section="php" data-label="PHP" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M1 5h14M1 11h14M5.5 2v12M10.5 2v12"/>
+              </svg>
+              PHP
+              <span class="nav-badge" id="phpDefaultBadge">—</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <span class="nav-section-label">Mail</span>
-
-      <div class="nav-item" data-section="mail">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="14" height="10" rx="1.5"/>
-          <path d="M1 4.5l7 4.5 7-4.5"/>
-        </svg>
-        Mail
+      <!-- ── [NEW] Databases ────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="databases">
+        <button class="nav-group-btn" id="navGroupBtn-databases"
+                aria-expanded="true" aria-controls="navGroupItems-databases">
+          Databases
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-databases" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="mysql" data-label="MySQL" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <ellipse cx="8" cy="4" rx="6" ry="2"/><path d="M2 4v4c0 1.1 2.7 2 6 2s6-.9 6-2V4"/><path d="M2 8v4c0 1.1 2.7 2 6 2s6-.9 6-2V8"/>
+              </svg>
+              MySQL
+            </div>
+            <div class="nav-item" data-section="phpmyadmin" data-label="phpMyAdmin" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+                <path d="M1 6h14M5 3v3M11 3v3"/>
+                <path d="M4 9.5h2M4 12h4"/>
+              </svg>
+              phpMyAdmin
+            </div>
+          </div>
+        </div>
       </div>
 
-      <span class="nav-section-label">System</span>
-
-      <div class="nav-item" data-section="logs">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 4h10M3 8h6M3 12h8"/>
-        </svg>
-        Logs
+      <!-- ── [NEW] Files & Apps ─────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="files-apps">
+        <button class="nav-group-btn" id="navGroupBtn-files-apps"
+                aria-expanded="true" aria-controls="navGroupItems-files-apps">
+          Files &amp; Apps
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-files-apps" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="files" data-label="File Manager" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 2h5l2 2h5v10H2z"/>
+              </svg>
+              File Manager
+            </div>
+            <div class="nav-item" data-section="apps" data-label="Apps" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+                <rect x="1" y="9" width="6" height="6" rx="1"/><path d="M9 12h6M12 9v6"/>
+              </svg>
+              Apps
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="nav-item" data-section="terminal">
-        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="2" width="14" height="12" rx="1.5"/>
-          <path d="M4 6l3 3-3 3M8 12h4"/>
-        </svg>
-        Terminal
+      <!-- ── [NEW] Tools ────────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="tools">
+        <button class="nav-group-btn" id="navGroupBtn-tools"
+                aria-expanded="true" aria-controls="navGroupItems-tools">
+          Tools
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-tools" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="cron" data-label="Cron Jobs" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l3 2"/>
+              </svg>
+              Cron Jobs
+            </div>
+            <div class="nav-item" data-section="backup" data-label="Backups" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M11 3H5a4 4 0 000 8h6"/><path d="M9 9l3 3 3-3"/>
+              </svg>
+              Backups
+            </div>
+            <div class="nav-item" data-section="firewall" data-label="Firewall" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M5 3v10M11 3v10M1 8h14"/>
+              </svg>
+              Firewall
+            </div>
+          </div>
+        </div>
       </div>
+
+      <!-- ── [NEW] Mail ─────────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="mail">
+        <button class="nav-group-btn" id="navGroupBtn-mail"
+                aria-expanded="true" aria-controls="navGroupItems-mail">
+          Mail
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-mail" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="mail" data-label="Mail" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+                <path d="M1 4.5l7 4.5 7-4.5"/>
+              </svg>
+              Mail
+            </div>
+            <div class="nav-item" data-section="dns" data-label="DNS" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="6.5"/>
+                <path d="M8 1.5C8 1.5 5 4 5 8s3 6.5 3 6.5M8 1.5C8 1.5 11 4 11 8s-3 6.5-3 6.5M1.5 8h13"/>
+              </svg>
+              DNS
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── [NEW] Access ───────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="access">
+        <button class="nav-group-btn" id="navGroupBtn-access"
+                aria-expanded="true" aria-controls="navGroupItems-access">
+          Access
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-access" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="users" data-label="Users" id="navUsers" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2-5 5-5h2c3 0 5 2 5 5"/>
+                <circle cx="12" cy="5" r="2"/><path d="M14 13c0-2-1-3.5-2-4"/>
+              </svg>
+              Users
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── [NEW] System ───────────────────────────────────────────────────── -->
+      <div class="nav-group" data-group="system">
+        <button class="nav-group-btn" id="navGroupBtn-system"
+                aria-expanded="true" aria-controls="navGroupItems-system">
+          System
+          <svg class="nav-group-chevron" width="10" height="10" viewBox="0 0 16 16"
+               fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
+        <div class="nav-group-items" id="navGroupItems-system" role="list">
+          <div class="nav-group-inner">
+            <div class="nav-item" data-section="logs" data-label="Logs" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 4h10M3 8h6M3 12h8"/>
+              </svg>
+              Logs
+            </div>
+            <div class="nav-item" data-section="terminal" data-label="Terminal" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="2" width="14" height="12" rx="1.5"/>
+                <path d="M4 6l3 3-3 3M8 12h4"/>
+              </svg>
+              Terminal
+            </div>
+            <div class="nav-item" data-section="settings" data-label="Settings" role="listitem">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/>
+              </svg>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+
     </nav>
 
+    <!-- Drag-to-resize handle -->
+    <div class="sidebar-resize-handle" id="sidebarResizeHandle" aria-hidden="true"></div>
+
     <div class="sidebar-footer">
-      <div class="sidebar-user" id="logoutBtn" title="Click to logout">
+      <div class="sidebar-footer-row">
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn"
+          aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar (C)">
+          <!-- icon swapped by JS -->
+          <svg id="sidebarCollapseIcon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
+            <path d="M10 3L5 8l5 5"/>
+          </svg>
+        </button>
+        <div class="sidebar-user" id="logoutBtn" title="Click to logout">
         <div class="user-avatar" id="userAvatar">A</div>
         <div class="user-info">
           <div class="user-name" id="userName">admin</div>
-          <div class="user-role">Root access</div>
+          <div class="user-role" id="userRole">Loading…</div>
         </div>
         <svg style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M10 8H2M6 5l-3 3 3 3M12 4v8"/>
         </svg>
-      </div>
-    </div>
+        </div><!-- /.sidebar-user -->
+      </div><!-- /.sidebar-footer-row -->
+    </div><!-- /.sidebar-footer -->
   </aside>
+
+  <!-- Floating tab shown when sidebar is collapsed -->
+  <button class="sidebar-expand-tab" id="sidebarExpandTab"
+    aria-label="Expand sidebar" title="Expand sidebar (C)">
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M6 3l5 5-5 5"/>
+    </svg>
+  </button>
 
   <!-- ── Topbar ────────────────────────────────────────────────────────── -->
   <header class="topbar">
@@ -108,6 +557,12 @@
       <span class="current" id="topbarSection">Dashboard</span>
     </div>
     <div class="topbar-right">
+      <div id="domainSwitcherWrap" style="display:none">
+        <select id="domainSwitcher" class="input input-sm" style="padding:.25rem .5rem;font-size:.8125rem;min-width:160px" onchange="switchActiveDomain(this.value)">
+          <option value="">All domains</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" style="font-size:.75rem" title="Open webmail" onclick="window.open(window.location.origin+'/webmail','_blank')">✉ Webmail</button>
       <span class="topbar-hostname" id="topbarHostname">loading...</span>
       <span class="topbar-clock" id="topbarClock"></span>
     </div>
@@ -123,12 +578,20 @@
           <h2>Dashboard</h2>
           <p>System overview — refreshes every 10 seconds</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="window.dashboard.refresh()">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/>
-          </svg>
-          Refresh
-        </button>
+        <div style="display:flex;gap:var(--space-2)">
+          <button class="btn btn-secondary btn-sm" onclick="window.dashboard.refresh()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/>
+            </svg>
+            Refresh
+          </button>
+          <button class="btn btn-sm" style="background:rgba(220,53,69,0.12);border:1px solid rgba(220,53,69,0.3);color:#e05c6a;" onmouseover="this.style.background='rgba(220,53,69,0.22)'" onmouseout="this.style.background='rgba(220,53,69,0.12)'" onclick="document.getElementById('modalReboot').classList.add('open')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 1v5M4.5 3.3A6 6 0 1 0 11.5 3.3"/>
+            </svg>
+            Reboot
+          </button>
+        </div>
       </div>
 
       <!-- Stat cards -->
@@ -211,19 +674,304 @@
       </div>
       <div class="table-wrap">
         <table>
+          <colgroup>
+            <col class="col-domain">
+            <col class="col-docroot">
+            <col class="col-ssl">
+            <col class="col-status">
+            <col class="col-actions">
+          </colgroup>
           <thead>
             <tr>
               <th>Domain</th>
               <th>Document Root</th>
               <th>SSL</th>
+              <th>Disk</th>
               <th>Status</th>
               <th style="text-align:right">Actions</th>
             </tr>
           </thead>
           <tbody id="domainsTable">
-            <tr><td colspan="5"><div class="empty-state"><p>Loading domains...</p></div></td></tr>
+            <tr><td colspan="7"><div class="empty-state"><p>Loading domains...</p></div></td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ════════════════ MYSQL ════════════════ -->
+    <section class="page-section" id="section-mysql">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>MySQL</h2>
+          <p>Manage databases and users</p>
+        </div>
+      </div>
+      <!-- Not installed notice -->
+      <div id="mysqlNotInstalled" style="display:none">
+        <div class="card" style="padding:var(--space-8);text-align:center">
+          <p style="color:var(--text-secondary);margin-bottom:var(--space-4)">MariaDB is not installed on this server.</p>
+          <button class="btn btn-primary" id="mysqlInstallBtn" onclick="window.mysqlMgr.installMySQL()">Install MariaDB</button>
+        </div>
+      </div>
+      <div id="mysqlContent" style="display:none">
+        <!-- Databases -->
+        <div class="card" style="margin-bottom:var(--space-5)">
+          <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Databases</h3>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Name</th><th>Size</th><th style="text-align:right">Actions</th></tr></thead>
+              <tbody id="mysqlDbTable"></tbody>
+            </table>
+          </div>
+          <div style="padding:var(--space-4) var(--space-5);border-top:1px solid var(--border);display:flex;gap:var(--space-2)">
+            <input type="text" class="input" id="mysqlNewDbName" placeholder="database_name" style="font-family:var(--font-mono);max-width:220px">
+            <button class="btn btn-primary btn-sm" id="mysqlCreateDbBtn" onclick="window.mysqlMgr.createDatabase()">+ Create Database</button>
+          </div>
+        </div>
+        <!-- Users -->
+        <div class="card">
+          <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+            <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Users</h3>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>User</th><th>Host</th><th style="text-align:right">Actions</th></tr></thead>
+              <tbody id="mysqlUserTable"></tbody>
+            </table>
+          </div>
+          <div style="padding:var(--space-4) var(--space-5);border-top:1px solid var(--border)">
+            <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="margin:0;flex:1;min-width:120px">
+                <label style="font-size:0.75rem">Username</label>
+                <input type="text" class="input" id="mysqlNewUser" placeholder="db_user" style="font-family:var(--font-mono)">
+              </div>
+              <div class="form-group" style="margin:0;flex:1;min-width:120px">
+                <label style="font-size:0.75rem">Password <span style="color:var(--text-muted)">(auto if blank)</span></label>
+                <input type="password" class="input" id="mysqlNewUserPw" placeholder="Leave blank to generate">
+              </div>
+              <div class="form-group" style="margin:0;flex:1;min-width:140px">
+                <label style="font-size:0.75rem">Grant access to</label>
+                <select class="input" id="mysqlUserDb"></select>
+              </div>
+              <button class="btn btn-primary btn-sm" id="mysqlCreateUserBtn" onclick="window.mysqlMgr.createUser()">+ Create User</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ FILES ════════════════ -->
+    <section class="page-section" id="section-files">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>File Manager</h2>
+          <p>Browse, edit, and upload files</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <select class="input" id="filesDomainSelect" onchange="window.filesMgr.onDomainChange()" style="font-size:0.8125rem;padding:6px 10px;width:auto"></select>
+          <button class="btn btn-ghost btn-sm" onclick="window.filesMgr.createFolder()">+ Folder</button>
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+            Upload
+            <input type="file" id="filesUploadInput" multiple style="display:none" onchange="window.filesMgr.uploadFiles()">
+          </label>
+        </div>
+      </div>
+      <div class="card" style="position:relative">
+        <div style="padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:0.8125rem" id="filesBreadcrumb">root</div>
+        <div id="filesLoadingOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;border-radius:var(--radius-lg);z-index:10">
+          <span style="color:var(--text-primary);font-size:0.875rem">Loading…</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="filesTable"><tr><td colspan="4"><div class="empty-state"><p>Select a domain to browse.</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ APPS ════════════════ -->
+    <section class="page-section" id="section-apps">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Apps</h2>
+          <p>WordPress installs and Git deployments</p>
+        </div>
+      </div>
+      <!-- WordPress -->
+      <div class="card" style="margin-bottom:var(--space-5)">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3 style="font-size:0.9375rem;font-weight:600;margin:0">WordPress</h3>
+            <p style="font-size:0.8125rem;color:var(--text-muted);margin:2px 0 0">One-click installs with automatic database setup</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Domain</th><th>Status</th><th>Path</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="wpTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Git Deploy -->
+      <div class="card">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Git Deploy</h3>
+          <p style="font-size:0.8125rem;color:var(--text-muted);margin:2px 0 0">Connect a repo and deploy via webhook or manual trigger</p>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Domain</th><th>Repository</th><th>Last Deploy</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="gitTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ CRON ════════════════ -->
+    <section class="page-section" id="section-cron">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Cron Jobs</h2>
+          <p>Scheduled tasks running as www-data</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:var(--space-5)">
+        <div class="table-wrap">
+          <table><thead><tr><th>Schedule</th><th>Command</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="cronTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Add Job</h3>
+        </div>
+        <div style="padding:var(--space-5)">
+          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group" style="margin:0;min-width:200px">
+              <label style="font-size:0.75rem">Schedule</label>
+              <select class="input" id="cronSchedulePreset" style="font-size:0.8125rem"></select>
+              <input type="text" class="input" id="cronScheduleCustom" placeholder="* * * * *" style="font-family:var(--font-mono);margin-top:6px;display:none">
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:240px">
+              <label style="font-size:0.75rem">Command</label>
+              <input type="text" class="input" id="cronCommand" placeholder="/usr/bin/php /var/www/domain.com/public_html/artisan schedule:run" style="font-family:var(--font-mono)">
+            </div>
+            <button class="btn btn-primary btn-sm" id="cronAddBtn" onclick="window.cronMgr.add()">Add Job</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ PHPMYADMIN ════════════════ -->
+    <section class="page-section" id="section-phpmyadmin">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>phpMyAdmin</h2>
+          <p>Visual database management</p>
+        </div>
+        <div class="page-header-actions">
+          <a href="/phpmyadmin" target="_blank" class="btn btn-secondary btn-sm" title="Open in new tab">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-right:4px;vertical-align:-1px">
+              <path d="M7 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1V9M10 2h4m0 0v4m0-4L7 9"/>
+            </svg>
+            Open in new tab
+          </a>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);background:var(--surface-1);height:calc(100vh - 220px);min-height:500px;">
+        <iframe
+          id="phpmyadminFrame"
+          src="/phpmyadmin"
+          style="width:100%;height:100%;border:none;display:block;"
+          title="phpMyAdmin"
+          loading="lazy">
+        </iframe>
+      </div>
+    </section>
+
+    <!-- ════════════════ BACKUP ════════════════ -->
+    <section class="page-section" id="section-backup">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Backups</h2>
+          <p>File and database backups stored on this server</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2)">
+          <select class="input" id="backupDomain" style="font-size:0.8125rem;padding:6px 10px;width:auto"></select>
+          <select class="input" id="backupType" style="font-size:0.8125rem;padding:6px 10px;width:auto">
+            <option value="all">Files + Database</option>
+            <option value="files">Files only</option>
+            <option value="database">Database only</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="backupCreateBtn" onclick="window.backupMgr.createBackup()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+            Create Backup
+          </button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Created</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody id="backupTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ FIREWALL ════════════════ -->
+    <section class="page-section" id="section-firewall">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Firewall</h2>
+          <p>UFW rules — manage open ports and blocked IPs</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <span id="firewallStatus" class="badge badge-muted">Loading…</span>
+          <button class="btn btn-ghost btn-sm" id="firewallEnableBtn">Enable UFW</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:var(--space-5)">
+        <div class="table-wrap">
+          <table><thead><tr><th>Rule</th><th>Action</th><th>From</th><th style="text-align:right">Delete</th></tr></thead>
+            <tbody id="firewallTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Add Rule</h3>
+        </div>
+        <div style="padding:var(--space-5)">
+          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:flex-end;margin-bottom:var(--space-4)">
+            <div class="form-group" style="margin:0;width:100px">
+              <label style="font-size:0.75rem">Port</label>
+              <input type="number" class="input" id="fwPort" placeholder="80">
+            </div>
+            <div class="form-group" style="margin:0;width:100px">
+              <label style="font-size:0.75rem">Protocol</label>
+              <select class="input" id="fwProto">
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;width:120px">
+              <label style="font-size:0.75rem">Action</label>
+              <select class="input" id="fwAction">
+                <option value="allow">Allow</option>
+                <option value="deny">Deny</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:140px">
+              <label style="font-size:0.75rem">Comment (optional)</label>
+              <input type="text" class="input" id="fwComment" placeholder="e.g. HTTP traffic">
+            </div>
+            <button class="btn btn-primary btn-sm" id="fwAddBtn" onclick="window.firewallMgr.addRule()">Add Rule</button>
+          </div>
+          <div style="display:flex;gap:var(--space-2);align-items:center;padding-top:var(--space-4);border-top:1px solid var(--border)">
+            <input type="text" class="input" id="fwBlockIp" placeholder="IP to block e.g. 1.2.3.4" style="max-width:260px;font-family:var(--font-mono)">
+            <button class="btn btn-danger btn-sm" onclick="window.firewallMgr.blockIp()">Block IP</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -232,7 +980,7 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2>Mail</h2>
-          <p>Mailboxes and forwarding rules</p>
+          <p>Mailboxes, forwarding rules, and DKIM signing</p>
         </div>
         <button class="btn btn-primary btn-sm" id="mailAddBtn">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
@@ -243,9 +991,10 @@
       <div class="tabs">
         <div class="tab active" data-tab="accounts" onclick="window.mail.switchTab('accounts', this)">Accounts</div>
         <div class="tab" data-tab="forwards" onclick="window.mail.switchTab('forwards', this)">Forwards</div>
+        <div class="tab" data-tab="dkim"     onclick="window.mail.switchTab('dkim', this)">DKIM &amp; DNS</div>
       </div>
 
-      <div class="tab-panel active" id="tab-accounts">
+      <div class="tab-panel active" id="tab-mail-accounts">
         <div class="table-wrap">
           <table>
             <thead><tr><th>Email</th><th>Quota</th><th style="text-align:right">Actions</th></tr></thead>
@@ -254,11 +1003,143 @@
         </div>
       </div>
 
-      <div class="tab-panel" id="tab-forwards">
+      <div class="tab-panel" id="tab-mail-forwards">
         <div class="table-wrap">
           <table>
             <thead><tr><th>Source</th><th>Destination(s)</th><th style="text-align:right">Actions</th></tr></thead>
             <tbody id="forwardsTable"><tr><td colspan="3"><div class="empty-state"><p>Loading...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-mail-dkim">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    </section>
+
+    <!-- ════════════════ DNS ════════════════ -->
+    <section class="page-section" id="section-dns">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>DNS Manager</h2>
+          <p>Manage BIND9 zones and DNS records served by ns1/ns2.danhorntx.com</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="dnsAddZoneBtn">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+          Add Zone
+        </button>
+      </div>
+
+      <!-- NS Info banner -->
+      <div id="dnsNsInfo" style="margin-bottom:var(--space-4)">
+        <div class="dns-ns-card">
+          <div class="dns-ns-row"><span class="dns-ns-label">NS1</span><code>ns1.danhorntx.com</code></div>
+          <div class="dns-ns-row"><span class="dns-ns-label">NS2</span><code>ns2.danhorntx.com</code></div>
+          <div class="dns-ns-row"><span class="dns-ns-label">Server IP</span><code><server-1-ip></code></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:var(--space-5);align-items:start">
+
+        <!-- Zone list (left panel) -->
+        <div class="card-outer" style="padding:var(--space-3)">
+          <div style="font-size:0.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 var(--space-2) var(--space-2)">Zones</div>
+          <div id="dnsZoneList" style="display:flex;flex-direction:column;gap:2px">
+            <div class="dns-empty-zones" style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-3)">No zones yet.</div>
+          </div>
+        </div>
+
+        <!-- Records panel (right) -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);gap:var(--space-3)">
+            <div style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">
+              Zone: <span id="dnsActiveZoneLabel" style="color:var(--accent)">—</span>
+            </div>
+            <div style="display:flex;gap:var(--space-2)">
+              <button class="btn btn-sm btn-ghost" id="dnsMailSetupBtn" disabled title="Auto-configure MX, SPF, DMARC for this zone">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 4.5l7 4.5 7-4.5"/></svg>
+                Mail DNS
+              </button>
+              <button class="btn btn-sm btn-primary" id="dnsAddRecordBtn" disabled>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+                Add Record
+              </button>
+              <button class="btn btn-sm btn-danger" id="dnsDeleteZoneBtn" disabled title="Delete this zone">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                Delete Zone
+              </button>
+            </div>
+          </div>
+
+          <div id="dnsNoZoneMsg" style="color:var(--text-muted);font-size:0.85rem;padding:var(--space-6) 0;text-align:center">
+            Select a zone on the left or create a new one.
+          </div>
+
+          <div id="dnsRecordTable" style="display:none">
+            <div class="table-wrap">
+              <table class="table" style="font-size:0.8rem">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>TTL</th>
+                    <th>Value</th>
+                    <th style="width:40px"></th>
+                  </tr>
+                </thead>
+                <tbody id="dnsRecordsTbody">
+                  <tr><td colspan="5"><div class="empty-state"><p>Select a zone</p></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ USERS ════════════════ -->
+    <section class="page-section" id="section-users">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Users</h2>
+          <p>Manage panel access accounts and domain permissions</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="usersMgr.openAdd()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+          Add User
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Username</th><th>Role</th><th>Domains</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody id="usersTable"><tr><td colspan="4"><div class="empty-state"><p>Loading…</p></div></td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Audit Log -->
+      <div class="card" style="margin-top:var(--space-6)">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Audit Log</h3>
+          <div style="display:flex;gap:var(--space-2);align-items:center">
+            <input id="auditLogFilter" class="input input-sm" placeholder="Filter by action…" style="width:180px" oninput="usersMgr.loadAuditLog()">
+            <button class="btn btn-ghost btn-sm" onclick="usersMgr.loadAuditLog()">Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height:480px;overflow-y:auto">
+          <table class="table" style="font-size:0.8125rem">
+            <thead>
+              <tr>
+                <th style="white-space:nowrap">Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Detail</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody id="auditLogTable">
+              <tr><td colspan="6"><div class="empty-state"><p>Load the Users section to see log entries.</p></div></td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -272,10 +1153,14 @@
           <p>Let's Encrypt and self-signed certificates</p>
         </div>
         <div style="display:flex;gap:var(--space-2)">
-          <button class="btn btn-secondary btn-sm" onclick="window.ssl.renewAll()">Renew All</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.ssl.renewAll()" title="Run certbot renew on all certs (skips certs not within 30-day window)">Renew All</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.ssl.openAutoModal()" title="Issue or re-issue a cert for a domain using certbot --apache">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L2 3.5V8c0 3.3 2.5 5.6 6 7 3.5-1.4 6-3.7 6-7V3.5L8 1z"/></svg>
+            AutoSSL
+          </button>
           <button class="btn btn-primary btn-sm" onclick="window.ssl.openRequestModal()">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
-            Request Cert
+            Manual Cert
           </button>
         </div>
       </div>
@@ -295,6 +1180,66 @@
             <tr><td colspan="6"><div class="empty-state"><p>Loading certificates...</p></div></td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ════════════════ PHP ════════════════ -->
+    <section class="page-section" id="section-php">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>PHP</h2>
+          <p>Manage PHP versions and per-domain assignments</p>
+        </div>
+        <div style="display:flex;gap:var(--space-2)">
+          <button class="btn btn-primary btn-sm" onclick="window.phpMgr.openInstallModal()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+            Install Version
+          </button>
+        </div>
+      </div>
+
+      <!-- Installed versions -->
+      <div class="card" style="margin-bottom:var(--space-5)">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Installed Versions</h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>FPM Status</th>
+                <th>Global Default</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="phpVersionsTable">
+              <tr><td colspan="4"><div class="empty-state"><p>Loading…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Domain assignments -->
+      <div class="card">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border)">
+          <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Domain PHP Assignments</h3>
+          <p style="font-size:0.8125rem;color:var(--text-muted);margin:4px 0 0">Override the global default PHP version per domain.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Current Version</th>
+                <th style="text-align:right">Change Version</th>
+              </tr>
+            </thead>
+            <tbody id="phpDomainsTable">
+              <tr><td colspan="3"><div class="empty-state"><p>Loading…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -346,35 +1291,375 @@
       </div>
     </section>
 
+    <!-- ════════════════ SETTINGS ════════════════ -->
+    <section class="page-section" id="section-settings">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h2>Settings</h2>
+          <p>Panel configuration and admin account</p>
+        </div>
+      </div>
+
+      <div style="max-width:520px;display:flex;flex-direction:column;gap:var(--space-6)">
+
+        <!-- Change password card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">Change Admin Password</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-6)">After saving you will be logged out and must sign in with the new password.</p>
+
+            <div class="form-group">
+              <label>Current Password</label>
+              <input type="password" class="input" id="settingsCurrentPw" placeholder="Your current password" autocomplete="current-password">
+            </div>
+            <div class="form-group">
+              <label>New Password</label>
+              <input type="password" class="input" id="settingsNewPw" placeholder="Minimum 8 characters" autocomplete="new-password">
+            </div>
+            <div class="form-group" style="margin-bottom:var(--space-6)">
+              <label>Confirm New Password</label>
+              <input type="password" class="input" id="settingsConfirmPw" placeholder="Repeat new password" autocomplete="new-password">
+              <span class="field-error" id="settingsPwError" style="display:none"></span>
+            </div>
+            <button class="btn btn-primary" id="settingsSaveBtn" onclick="window.settings.changePassword()">Update Password</button>
+          </div>
+        </div>
+
+        <!-- Server info card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">Server Information</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-5)">Use these details when pointing domains to this server.</p>
+            <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+                <span style="font-size:0.8125rem;color:var(--text-muted)">IPv4 Address</span>
+                <span class="mono text-accent" id="settingsServerIp" style="font-family:var(--font-mono);font-size:0.875rem">loading...</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+                <span style="font-size:0.8125rem;color:var(--text-muted)">Hostname</span>
+                <span class="mono text-secondary" id="settingsHostname" style="font-family:var(--font-mono);font-size:0.875rem">loading...</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+                <span style="font-size:0.8125rem;color:var(--text-muted)">Panel URL</span>
+                <span class="mono text-secondary" style="font-family:var(--font-mono);font-size:0.875rem" id="settingsPanelUrl">loading...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ════════════════ DANALYTICS ════════════════ -->
+    <section class="page-section" id="section-analytics" aria-label="DAnalytics traffic dashboard">
+
+      <!-- ── Print-only header ──────────────────────────────────────────────── -->
+      <div id="analyticsPrintHeader" style="border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:16px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <div style="font-size:1.5rem;font-weight:700;letter-spacing:-0.04em;color:#4f8ef7">D/</div>
+          <div>
+            <div style="font-size:1.125rem;font-weight:600;color:#e4e8f0">DAnalytics Traffic Report</div>
+            <div style="font-size:.8125rem;color:#7a86a0">Generated by DPanel</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:24px;font-size:.8125rem;color:#7a86a0">
+          <span>Domain: <strong style="color:#e4e8f0" id="printHeaderDomain">All Domains</strong></span>
+          <span>Range: <strong style="color:#e4e8f0" id="printHeaderRange">—</strong></span>
+          <span id="printHeaderDate"></span>
+        </div>
+      </div>
+
+      <!-- ── Page header + controls ─────────────────────────────────────────── -->
+      <div class="page-header" style="flex-wrap:wrap;gap:var(--space-3)">
+        <div class="page-header-left">
+          <h2 style="display:flex;align-items:center;gap:var(--space-2)">
+            <span style="color:var(--accent)">D/</span>Analytics
+          </h2>
+          <p>Traffic data from Apache access logs — no tracking script needed</p>
+        </div>
+
+        <div id="analyticsPrintHide" style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap">
+          <!-- Domain selector -->
+          <select id="analyticsDomainsSelect" class="input input-sm" aria-label="Select domain" style="min-width:150px">
+            <option value="all">All Domains</option>
+          </select>
+
+          <!-- Date presets -->
+          <div class="a-btn-group" role="group" aria-label="Date range presets">
+            <button class="btn btn-xs analytics-preset" data-days="today">Today</button>
+            <button class="btn btn-xs analytics-preset" data-days="7">7d</button>
+            <button class="btn btn-xs analytics-preset active" data-days="30">30d</button>
+            <button class="btn btn-xs analytics-preset" data-days="90">90d</button>
+            <button class="btn btn-xs analytics-preset" data-days="ytd">YTD</button>
+          </div>
+
+          <!-- Traffic type filter -->
+          <div class="a-btn-group" role="group" aria-label="Traffic type filter">
+            <button class="btn btn-xs analytics-traffic active" data-type="real">Real Users</button>
+            <button class="btn btn-xs analytics-traffic" data-type="bots">Bots</button>
+            <button class="btn btn-xs analytics-traffic" data-type="all">All Traffic</button>
+          </div>
+
+          <!-- Custom date range -->
+          <input type="date" id="analyticsFrom" class="input input-sm" aria-label="From date" style="width:128px">
+          <span style="color:var(--text-muted);font-size:.8125rem">→</span>
+          <input type="date" id="analyticsTo" class="input input-sm" aria-label="To date" style="width:128px">
+
+          <!-- Refresh -->
+          <button class="btn btn-secondary btn-sm" onclick="window.analyticsModule.load()" aria-label="Refresh">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/></svg>
+            Refresh
+          </button>
+
+          <!-- Export PDF -->
+          <button class="btn btn-primary btn-sm" onclick="window.analyticsModule.exportPDF()" aria-label="Export PDF report">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 14h10M8 3v8M5 8l3 3 3-3"/></svg>
+            Export PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Real-time active visitors badge ───────────────────────────────── -->
+      <div id="analyticsRealtime" style="margin-bottom:var(--space-4);display:none" aria-live="polite">
+        <span class="badge badge-green" style="font-size:.8125rem;padding:6px 12px">
+          <span class="badge-dot"></span>
+          <span id="analyticsRealtimeCount">0</span> active visitors right now
+        </span>
+      </div>
+
+      <!-- ── Summary stat cards ─────────────────────────────────────────────── -->
+      <div class="a-stats-grid" id="analyticsStats" aria-label="Summary metrics">
+        <!-- rendered by analyticsModule.renderSummaryCards() -->
+      </div>
+
+      <!-- ── Traffic over time ─────────────────────────────────────────────── -->
+      <div class="card-outer" style="margin-bottom:var(--space-4)">
+        <div class="card-inner">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-2)">
+            <div>
+              <h4 style="margin:0 0 2px">Traffic Over Time</h4>
+              <span class="a-chart-total" id="analyticsChartTotal"></span>
+            </div>
+            <div class="a-btn-group" role="group" aria-label="Chart granularity">
+              <button class="btn btn-xs analytics-gran" data-gran="hourly">Hourly</button>
+              <button class="btn btn-xs analytics-gran active" data-gran="daily">Daily</button>
+              <button class="btn btn-xs analytics-gran" data-gran="weekly">Weekly</button>
+              <button class="btn btn-xs analytics-gran" data-gran="monthly">Monthly</button>
+            </div>
+          </div>
+          <div style="position:relative;height:300px">
+            <canvas id="analyticsTimeChart" aria-label="Traffic over time area chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Top Pages + Traffic Sources ──────────────────────────────────── -->
+      <div class="a-grid-2">
+        <!-- Top Pages -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-4)">Top Pages</h4>
+            <div id="analyticsTopPages"></div>
+          </div>
+        </div>
+
+        <!-- Traffic Sources -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-4)">Traffic Sources</h4>
+            <div style="position:relative;height:200px;margin-bottom:var(--space-4)">
+              <canvas id="analyticsSourceChart" aria-label="Traffic sources doughnut chart"></canvas>
+            </div>
+            <div id="analyticsSourceList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Devices / Browsers / OS ───────────────────────────────────────── -->
+      <div class="a-grid-3">
+        <div class="card-outer">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-1)">Devices</h4>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Desktop, mobile, tablet</p>
+            <div id="analyticsDevices"></div>
+          </div>
+        </div>
+        <div class="card-outer">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-1)">Browsers</h4>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Client browser breakdown</p>
+            <div id="analyticsBrowsers"></div>
+          </div>
+        </div>
+        <div class="card-outer">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-1)">Operating Systems</h4>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Visitor OS breakdown</p>
+            <div id="analyticsOS"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Top Referrers table ───────────────────────────────────────────── -->
+      <div class="card-outer" style="margin-bottom:var(--space-4)">
+        <div class="card-inner">
+          <h4 style="margin-bottom:var(--space-3)">Top Referrers</h4>
+          <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">External domains that linked visitors to your sites</p>
+          <div id="analyticsReferrers"></div>
+        </div>
+      </div>
+
+      <!-- ── Geographic Breakdown ─────────────────────────────────────────── -->
+      <div class="card-outer" style="margin-bottom:var(--space-4)">
+        <div class="card-inner">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);flex-wrap:wrap;gap:var(--space-2)">
+            <div>
+              <h4 style="margin:0">Geographic Breakdown</h4>
+              <p style="font-size:.75rem;color:var(--text-muted);margin-top:var(--space-1)">Where your visitors are coming from · click a country to drill down</p>
+            </div>
+            <div id="geoBackBtn" style="display:none">
+              <button class="btn btn-sm btn-ghost" onclick="window.analyticsModule.geoDrillBack()">← Back to Countries</button>
+            </div>
+          </div>
+          <div id="analyticsGeo">
+            <div class="empty-state" style="padding:var(--space-5)"><p class="text-sm text-muted">Loading geographic data…</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Bot / Traffic Breakdown card ─────────────────────────────────── -->
+      <div class="card-outer" style="margin-bottom:var(--space-4)">
+        <div class="card-inner">
+          <h4 style="margin-bottom:var(--space-1)">Traffic Classification</h4>
+          <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Bot detection powered by isbot + DPanel custom patterns</p>
+          <div id="analyticsTrafficBreakdown"></div>
+        </div>
+      </div>
+
+      <!-- ── Data source note ──────────────────────────────────────────────── -->
+      <p class="text-sm text-muted" style="text-align:center;padding:var(--space-4) 0">
+        Data sourced from Apache access logs at <code class="text-mono" style="font-size:.75rem">/var/log/apache2/</code>
+        · IP geolocation via geoip-lite (MaxMind GeoLite2) · IPs anonymized, never stored raw
+      </p>
+
+    </section>
+
   </main>
 </div>
 
 <!-- ════════════════ MODALS ════════════════ -->
 
+<!-- Reboot confirmation modal -->
+<div class="modal-backdrop" id="modalReboot">
+  <div class="modal-outer" style="max-width:400px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3 style="color:#e05c6a">Reboot Server</h3>
+      <button class="modal-close" onclick="document.getElementById('modalReboot').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.9375rem;line-height:1.6;margin-bottom:var(--space-5)">
+        This will immediately restart the server. All running services will go offline for 30–60 seconds while it reboots.
+      </p>
+      <p style="font-size:0.8125rem;color:var(--text-muted)">DPanel will reconnect automatically once the server is back up.</p>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalReboot').classList.remove('open')">Cancel</button>
+      <button class="btn btn-sm" id="rebootConfirmBtn"
+        style="background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:#e05c6a;padding:0 var(--space-5)"
+        onclick="window.dashboard.reboot()">
+        Yes, Reboot Now
+      </button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Delete Domain confirmation modal -->
+<div class="modal-backdrop" id="modalDeleteDomain">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3 style="color:#e05c6a">Delete Domain</h3>
+      <button class="modal-close" onclick="window.domains.closeModal('modalDeleteDomain')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.9rem;line-height:1.6;margin-bottom:var(--space-4)">
+        This will permanently remove the Apache vhost for <strong id="deleteDomainDisplay" style="color:var(--text-primary)"></strong>. Files in the document root are <strong>not</strong> deleted.
+      </p>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Type <strong id="deleteDomainLabel" style="font-family:var(--font-mono);color:var(--accent)"></strong> to confirm</label>
+        <input type="text" class="input" id="deleteDomainInput" placeholder="" autocomplete="off" spellcheck="false" oninput="window.domains.checkDeleteInput()">
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.domains.closeModal('modalDeleteDomain')">Cancel</button>
+      <button class="btn btn-sm" id="deleteDomainConfirmBtn" disabled
+        style="background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:#e05c6a;padding:0 var(--space-5);opacity:0.4;transition:opacity 0.2s"
+        onclick="window.domains.submitDelete()">
+        Delete
+      </button>
+    </div>
+  </div></div>
+</div>
+
 <!-- Add Domain modal -->
 <div class="modal-backdrop" id="modalAddDomain">
-  <div class="modal-outer"><div class="modal-inner">
+  <div class="modal-outer" style="max-width:560px"><div class="modal-inner">
     <div class="modal-header">
       <h3>Add Domain</h3>
       <button class="modal-close" onclick="window.domains.closeModal('modalAddDomain')">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- Nameserver Instructions callout -->
+      <div style="background:var(--accent-dim);border:1px solid var(--border-accent);border-radius:var(--radius-md);padding:var(--space-4);margin-bottom:var(--space-5)">
+        <div style="font-size:0.8125rem;font-weight:600;color:var(--accent);margin-bottom:var(--space-3);display:flex;align-items:center;gap:var(--space-2)">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v5M8 5v.5"/></svg>
+          Point your domain's nameservers to this server
+        </div>
+        <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-3)">
+          At your domain registrar (GoDaddy, Namecheap, Google Domains, etc.), set the <strong style="color:var(--text-primary)">nameservers</strong> for your domain to the values below. DPanel will automatically manage all DNS records.
+        </p>
+        <div style="background:var(--bg-base);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);font-family:var(--font-mono);font-size:0.75rem;display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:var(--space-3);color:var(--text-muted);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:2px">
+            <span>NS</span><span>Value</span>
+          </div>
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:var(--space-3)">
+            <span style="color:var(--text-muted)">NS 1</span>
+            <span style="color:var(--accent)">ns1.danhorntx.com</span>
+          </div>
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:var(--space-3)">
+            <span style="color:var(--text-muted)">NS 2</span>
+            <span style="color:var(--accent)">ns2.danhorntx.com</span>
+          </div>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-3)">
+          Nameserver propagation takes 5–30 minutes. Once done, click <strong style="color:var(--text-secondary)">Create Domain</strong> — DPanel will automatically create a DNS zone, SFTP account, and free SSL cert. A zone entry will appear in the <strong style="color:var(--text-secondary)">DNS</strong> section where you can add custom records.
+        </p>
+      </div>
+
       <div class="form-group">
         <label>Domain Name</label>
-        <input type="text" class="input mono" id="addDomainName" placeholder="example.com">
+        <input type="text" class="input mono" id="addDomainName" placeholder="example.com or sub.example.com" oninput="window.domains.updateDnsPreview(this.value)">
       </div>
       <div class="form-group">
-        <label>Document Root</label>
-        <input type="text" class="input mono" id="addDomainRoot" placeholder="/var/www/example.com/public_html (auto-created if blank)">
+        <label>Document Root <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <input type="text" class="input mono" id="addDomainRoot" placeholder="Auto: /var/www/example.com/public_html">
+        <span class="field-hint">Leave blank to auto-create at /var/www/[domain]/public_html</span>
       </div>
       <div class="checkbox-row">
         <input type="checkbox" id="addDomainCreateDir" checked>
         <label for="addDomainCreateDir">Create document root directory if it doesn't exist</label>
       </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="addDomainMailDns">
+        <label for="addDomainMailDns">
+          Configure DNS for mail
+          <span style="color:var(--text-muted);font-weight:400"> — adds MX, SPF, and DMARC records to the DNS zone</span>
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="window.domains.closeModal('modalAddDomain')">Cancel</button>
-      <button class="btn btn-primary" onclick="window.domains.add()">Create Vhost</button>
+      <button class="btn btn-primary" onclick="window.domains.add()">Create Domain</button>
     </div>
   </div></div>
 </div>
@@ -396,6 +1681,74 @@
   </div></div>
 </div>
 
+<!-- Domain Redirects modal -->
+<div class="modal-backdrop" id="modalRedirects">
+  <div class="modal-outer" style="max-width:680px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Redirects — <span id="redirectModalDomain"></span></h3>
+      <button class="modal-close" onclick="window.domains.closeModal('modalRedirects')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-secondary text-sm" style="margin-bottom:var(--space-4)">Add 301/302 URL redirects for this domain. Redirects are written to <code>.htaccess</code> in the document root.</p>
+
+      <!-- Add redirect form -->
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:var(--space-2);margin-bottom:var(--space-4);align-items:end">
+        <div>
+          <label class="label">From Path</label>
+          <input id="redirectFrom" class="input input-sm" placeholder="/old-page">
+        </div>
+        <div>
+          <label class="label">To URL</label>
+          <input id="redirectTo" class="input input-sm" placeholder="https://example.com/new">
+        </div>
+        <div>
+          <label class="label">Type</label>
+          <select id="redirectType" class="input input-sm">
+            <option value="301">301 Permanent</option>
+            <option value="302">302 Temporary</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="window.domains.addRedirect()" style="align-self:flex-end">Add</button>
+      </div>
+
+      <!-- Redirects table -->
+      <div class="table-wrap" style="max-height:320px;overflow-y:auto">
+        <table class="table">
+          <thead><tr><th>From</th><th>To</th><th>Type</th><th style="width:60px"></th></tr></thead>
+          <tbody id="redirectsTable">
+            <tr><td colspan="4"><div class="empty-state"><p>No redirects yet.</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.domains.closeModal('modalRedirects')">Close</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Domain Error/Access Log modal -->
+<div class="modal-backdrop" id="modalDomainLogs">
+  <div class="modal-outer" style="max-width:860px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Logs — <span id="logsModalDomain"></span></h3>
+      <button class="modal-close" onclick="window.domains.closeModal('modalDomainLogs')">✕</button>
+    </div>
+    <div class="modal-body" style="padding-bottom:0">
+      <div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-3)">
+        <button class="btn btn-xs logs-tab-btn active" data-log-type="error" onclick="window.domains.switchLogsTab('error')">Error Log</button>
+        <button class="btn btn-xs logs-tab-btn" data-log-type="access" onclick="window.domains.switchLogsTab('access')">Access Log</button>
+      </div>
+      <div style="background:var(--bg-code,#0d1117);border-radius:var(--radius);padding:var(--space-4);max-height:480px;overflow-y:auto">
+        <pre id="logsModalContent" style="margin:0;font-size:0.75rem;line-height:1.6;color:#e6edf3;white-space:pre-wrap;word-break:break-all">Loading…</pre>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.domains.closeModal('modalDomainLogs')">Close</button>
+    </div>
+  </div></div>
+</div>
+
 <!-- Add Mail Account modal -->
 <div class="modal-backdrop" id="modalAddAccount">
   <div class="modal-outer"><div class="modal-inner">
@@ -410,7 +1763,24 @@
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" class="input" id="addAccountPassword" placeholder="Minimum 8 characters">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="position:relative;flex:1">
+            <input type="password" class="input" id="addAccountPassword" placeholder="Minimum 8 characters" style="width:100%;padding-right:36px">
+            <button type="button" title="Show/hide password"
+              onclick="(function(btn){var i=document.getElementById('addAccountPassword');i.type=i.type==='password'?'text':'password';btn.innerHTML=i.type==='password'?'&#128065;':'&#128064;'})(this)"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-muted);padding:0;line-height:1">&#128065;</button>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="window.mail.generateMailPassword()" title="Generate strong password" style="white-space:nowrap;flex-shrink:0">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/><path d="M10.5 1v4h4"/></svg>
+            Generate
+          </button>
+        </div>
+        <div id="addAccountPasswordStrength" style="margin-top:6px;display:none">
+          <div style="height:3px;border-radius:2px;background:var(--border);overflow:hidden">
+            <div id="addAccountPasswordBar" style="height:100%;width:0%;border-radius:2px;transition:width .3s,background .3s"></div>
+          </div>
+          <span id="addAccountPasswordLabel" style="font-size:.72rem;color:var(--text-muted);margin-top:3px;display:block"></span>
+        </div>
       </div>
       <div class="form-group">
         <label>Quota</label>
@@ -486,13 +1856,1083 @@
     <div class="modal-body">
       <div class="form-group">
         <label>New Password</label>
-        <input type="password" class="input" id="changePasswordValue" placeholder="New password">
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <div style="position:relative;flex:1">
+            <input type="password" class="input" id="changePasswordValue" placeholder="New password" style="padding-right:36px">
+            <button type="button" title="Show/hide password"
+              onclick="(function(btn){var i=document.getElementById('changePasswordValue');i.type=i.type==='password'?'text':'password';btn.innerHTML=i.type==='password'?'&#128065;':'&#128064;'})(this)"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-secondary);padding:0;line-height:1">&#128065;</button>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="window.mail.generateChangePassword()" title="Generate strong password" style="white-space:nowrap;flex-shrink:0">
+            Generate
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="changePasswordCopyBtn" onclick="window.mail.copyChangePassword()" title="Copy password" style="white-space:nowrap;flex-shrink:0">
+            Copy
+          </button>
+        </div>
       </div>
       <input type="hidden" id="changePasswordEmail">
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="window.mail.closeModal('modalChangePassword')">Cancel</button>
       <button class="btn btn-primary" onclick="window.mail.changePassword()">Update Password</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ── Edit Quota Modal ───────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modalEditQuota">
+  <div class="modal-outer"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Edit Quota</h3>
+      <button class="modal-close" onclick="window.mail.closeModal('modalEditQuota')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-secondary);font-size:.875rem;margin-bottom:var(--space-4)">
+        Account: <strong id="editQuotaLabel"></strong>
+      </p>
+      <div class="form-group">
+        <label>Storage Quota</label>
+        <input type="text" class="input" id="editQuotaValue" placeholder="e.g. 500M, 1G, 5G">
+        <p class="form-hint">Use M for megabytes, G for gigabytes (e.g. 500M, 1G, 2G)</p>
+      </div>
+      <input type="hidden" id="editQuotaEmail">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="window.mail.closeModal('modalEditQuota')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.mail.saveQuota()">Save Quota</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ── Domain Access Modals ───────────────────────────────────────────────── -->
+
+<!-- Manage Access Accounts -->
+<div class="modal-backdrop" id="modalDomainAccess">
+  <div class="modal-outer" style="max-width:540px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Access Accounts</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px" id="accessModalTitle"></div>
+      </div>
+      <button class="modal-close" onclick="window.ftp.closeModal('modalDomainAccess')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">
+        Each account gets SFTP access to this domain's document root. Optionally enable SSH shell access or add a public key for key-based login.
+        Connect with any SFTP client (FileZilla, Transmit, etc.) using the server IP on port 22.
+      </p>
+      <div id="accessAccountsList"></div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.ftp.closeModal('modalDomainAccess')">Close</button>
+      <button class="btn btn-primary" onclick="window.ftp.openAdd()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Add Account
+      </button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Add Access Account -->
+<div class="modal-backdrop" id="modalAddAccess">
+  <div class="modal-outer" style="max-width:480px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add Access Account</h3>
+      <button class="modal-close" onclick="window.ftp.closeModal('modalAddAccess')">✕</button>
+    </div>
+    <div class="modal-body">
+      <span class="field-error" id="addAccessError" style="display:none;margin-bottom:var(--space-4)"></span>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" class="input" id="addAccessUsername" placeholder="e.g. cuttify_sftp" autocomplete="off" spellcheck="false">
+        <span class="field-hint">Lowercase letters, numbers, hyphens, underscores only.</span>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1)">
+          <label style="margin-bottom:0">Password</label>
+          <button type="button" class="btn btn-ghost btn-xs" onclick="window.ftp.generatePassword()" style="font-size:0.75rem">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/></svg>
+            Generate
+          </button>
+        </div>
+        <input type="password" class="input" id="addAccessPassword" placeholder="Minimum 8 characters" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" class="input" id="addAccessConfirm" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <div class="form-group" style="margin-bottom:var(--space-4)">
+        <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:400">
+          <input type="checkbox" id="addAccessAllowShell" style="accent-color:var(--accent)">
+          Allow SSH shell access (in addition to SFTP)
+        </label>
+        <span class="field-hint">Leave unchecked for SFTP file transfers only — more secure.</span>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1)">
+          <label style="margin-bottom:0">SSH Public Key <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <button type="button" class="btn btn-ghost btn-xs" id="genKeyBtn" onclick="window.ftp.generateKeypair()" style="font-size:0.75rem">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 11l3-3 2 2 5-5M14 5h-3V2"/></svg>
+            Generate Key Pair
+          </button>
+        </div>
+        <textarea class="input" id="addAccessSshKey" rows="3" placeholder="ssh-rsa AAAA… or ssh-ed25519 AAAA…" style="resize:vertical;font-family:var(--font-mono);font-size:0.8125rem"></textarea>
+        <span class="field-hint">Paste or generate a public key for passwordless login. If you generate, your private key downloads automatically.</span>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.ftp.closeModal('modalAddAccess')">Cancel</button>
+      <button class="btn btn-primary" id="addAccessBtn" onclick="window.ftp.submitAdd()">Create Account</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Edit Access Account -->
+<div class="modal-backdrop" id="modalEditAccess">
+  <div class="modal-outer" style="max-width:480px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Edit Account</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="editAccessUsername"></div>
+      </div>
+      <button class="modal-close" onclick="window.ftp.closeModal('modalEditAccess')">✕</button>
+    </div>
+    <div class="modal-body">
+      <span class="field-error" id="editAccessError" style="display:none;margin-bottom:var(--space-4)"></span>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-5)" id="editAccessShellBadge"></div>
+
+      <!-- Change Password section -->
+      <div style="padding-bottom:var(--space-5);border-bottom:1px solid var(--border);margin-bottom:var(--space-5)">
+        <h4 style="font-size:0.875rem;margin-bottom:var(--space-4)">Change Password</h4>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1)">
+            <label style="margin-bottom:0">New Password</label>
+            <button type="button" class="btn btn-ghost btn-xs" onclick="window.ftp.generateEditPassword()" style="font-size:0.75rem">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/></svg>
+              Generate
+            </button>
+          </div>
+          <input type="password" class="input" id="editAccessPassword" placeholder="Minimum 8 characters" autocomplete="new-password">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Confirm Password</label>
+          <input type="password" class="input" id="editAccessConfirm" placeholder="Repeat new password" autocomplete="new-password">
+        </div>
+        <div style="margin-top:var(--space-4);display:flex;gap:var(--space-2);align-items:center">
+          <button class="btn btn-secondary btn-sm" id="editSavePwBtn" onclick="window.ftp.savePassword()">Update Password</button>
+          <button class="btn btn-ghost btn-sm" id="editPwCopyBtn" onclick="window.ftp.copyEditPassword()" style="display:none">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"/></svg>
+            Copy Password
+          </button>
+        </div>
+      </div>
+
+      <!-- SSH Key section -->
+      <div>
+        <h4 style="font-size:0.875rem;margin-bottom:var(--space-2)">SSH Public Key</h4>
+        <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-3)" id="editAccessSshKeyHint"></p>
+        <textarea class="input" id="editAccessSshKey" rows="3" placeholder="ssh-rsa AAAA… or ssh-ed25519 AAAA…" style="resize:vertical;font-family:var(--font-mono);font-size:0.8125rem"></textarea>
+        <div style="margin-top:var(--space-3)">
+          <button class="btn btn-secondary btn-sm" id="editSaveKeyBtn" onclick="window.ftp.saveSshKey()">Save SSH Key</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.ftp.closeModal('modalEditAccess')">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Setup Complete modal ════════════════ -->
+<div class="modal-backdrop" id="modalSetupComplete">
+  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Domain Setup Complete</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px" id="credDomain"></div>
+      </div>
+      <button class="modal-close" onclick="window.domains.closeModal('modalSetupComplete')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- SSL status -->
+      <div style="margin-bottom:var(--space-4)" id="credSSLStatus"></div>
+
+      <!-- Mail DNS status (shown only when checkbox was checked) -->
+      <div id="credMailDnsStatus" style="display:none;margin-bottom:var(--space-5)"></div>
+
+      <!-- Account error (shown instead of SFTP section if account creation failed) -->
+      <div class="field-error" id="credAccountError" style="display:none;margin-bottom:var(--space-4)"></div>
+
+      <!-- SFTP credentials -->
+      <div id="credsSFTPSection">
+        <div style="font-size:0.8125rem;font-weight:600;color:var(--text-secondary);margin-bottom:var(--space-3);text-transform:uppercase;letter-spacing:0.06em">
+          SFTP / SSH Credentials
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+
+          <!-- Host -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+            <span style="font-size:0.8125rem;color:var(--text-muted);width:80px;flex-shrink:0">Host</span>
+            <span class="mono" id="credHost" style="font-family:var(--font-mono);font-size:0.875rem;flex:1;color:var(--text-primary)"></span>
+            <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credHost')">Copy</button>
+          </div>
+
+          <!-- Port -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+            <span style="font-size:0.8125rem;color:var(--text-muted);width:80px;flex-shrink:0">Port</span>
+            <span class="mono" id="credPort" style="font-family:var(--font-mono);font-size:0.875rem;flex:1;color:var(--text-primary)">22</span>
+            <div style="width:50px"></div>
+          </div>
+
+          <!-- Username -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+            <span style="font-size:0.8125rem;color:var(--text-muted);width:80px;flex-shrink:0">Username</span>
+            <span class="mono" id="credUsername" style="font-family:var(--font-mono);font-size:0.875rem;flex:1;color:var(--accent)"></span>
+            <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credUsername')">Copy</button>
+          </div>
+
+          <!-- Password -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+            <span style="font-size:0.8125rem;color:var(--text-muted);width:80px;flex-shrink:0">Password</span>
+            <span class="mono" id="credPassword" style="font-family:var(--font-mono);font-size:0.875rem;flex:1;color:var(--text-primary)"></span>
+            <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credPassword')">Copy</button>
+          </div>
+
+          <!-- Doc root -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border)">
+            <span style="font-size:0.8125rem;color:var(--text-muted);width:80px;flex-shrink:0">Path</span>
+            <span class="mono" id="credDocRoot" style="font-family:var(--font-mono);font-size:0.8125rem;flex:1;color:var(--text-secondary);word-break:break-all"></span>
+            <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credDocRoot')">Copy</button>
+          </div>
+
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-4)">
+          Save this password — it won't be shown again. You can change it anytime from the <strong style="color:var(--text-secondary)">Access</strong> button on the domain row.
+        </p>
+      </div>
+
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-primary" onclick="window.domains.closeModal('modalSetupComplete')">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Remove SSL cert confirmation modal ════════════════ -->
+<div class="modal-backdrop" id="modalRevokeSSL">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3 style="color:#e05c6a">Remove SSL Cert</h3>
+      <button class="modal-close" onclick="document.getElementById('modalRevokeSSL').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.9375rem;line-height:1.6;margin-bottom:var(--space-4)">
+        This will delete the Let's Encrypt certificate and renewal config for <strong id="revokeModalDomain" style="color:var(--text-primary);font-family:var(--font-mono)"></strong> from this server.
+      </p>
+      <p style="font-size:0.8125rem;color:var(--text-muted)">
+        The cert is not revoked at the CA — just removed locally. You can re-issue it at any time.
+      </p>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalRevokeSSL').classList.remove('open')">Cancel</button>
+      <button class="btn btn-sm" style="background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.4);color:#e05c6a;padding:0 var(--space-5)"
+        onclick="window.ssl.submitRevoke()">Remove</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Drop Database modal ════════════════ -->
+<div class="modal-backdrop" id="modalDropDb">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header"><h3>Drop Database</h3>
+      <button class="modal-close" onclick="document.getElementById('modalDropDb').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary)">Are you sure you want to drop <strong style="font-family:var(--font-mono)" id="mysqlDropDbName"></strong>? This permanently deletes all data.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalDropDb').classList.remove('open')">Cancel</button>
+      <button class="btn btn-danger" onclick="window.mysqlMgr.submitDropDb()">Drop Database</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ MySQL Credentials modal ════════════════ -->
+<div class="modal-backdrop" id="modalMysqlCreds">
+  <div class="modal-outer" style="max-width:460px"><div class="modal-inner">
+    <div class="modal-header"><h3>Database User Created</h3>
+      <button class="modal-close" onclick="document.getElementById('modalMysqlCreds').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:var(--space-4)">Save these credentials — the password won't be shown again.</p>
+      <div class="cred-row"><span class="cred-label">Username</span><span class="cred-val" id="mysqlCredsUser"></span><button class="btn btn-ghost btn-xs" onclick="window.mysqlMgr.copyCred('mysqlCredsUser')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">Database</span><span class="cred-val" id="mysqlCredsDb"></span><button class="btn btn-ghost btn-xs" onclick="window.mysqlMgr.copyCred('mysqlCredsDb')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">Password</span><span class="cred-val" style="font-family:var(--font-mono)" id="mysqlCredsPw"></span><button class="btn btn-ghost btn-xs" onclick="window.mysqlMgr.copyCred('mysqlCredsPw')">Copy</button></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="document.getElementById('modalMysqlCreds').classList.remove('open')">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Change MySQL Password modal ════════════════ -->
+<div class="modal-backdrop" id="modalChangeMysqlPw">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header"><h3>Change Password — <span id="mysqlChangePwUser"></span></h3>
+      <button class="modal-close" onclick="document.getElementById('modalChangeMysqlPw').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" class="input" id="mysqlNewPw" placeholder="Min 8 characters">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalChangeMysqlPw').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.mysqlMgr.submitChangePw()">Update Password</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ File Editor modal ════════════════ -->
+<div class="modal-backdrop" id="modalFileEditor">
+  <div class="modal-outer" style="max-width:800px;width:95vw"><div class="modal-inner">
+    <div class="modal-header">
+      <h3 style="font-family:var(--font-mono);font-size:0.9375rem" id="editorFilename"></h3>
+      <button class="modal-close" onclick="document.getElementById('modalFileEditor').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <textarea id="editorContent" style="width:100%;height:60vh;font-family:var(--font-mono);font-size:0.8125rem;background:var(--bg-base);color:var(--text-primary);border:none;padding:var(--space-5);resize:vertical;outline:none;line-height:1.6"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalFileEditor').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="editorSaveBtn" onclick="window.filesMgr.saveFile()">Save</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Install WordPress modal ════════════════ -->
+<div class="modal-backdrop" id="modalInstallWP">
+  <div class="modal-outer" style="max-width:500px"><div class="modal-inner">
+    <div class="modal-header"><h3>Install WordPress</h3>
+      <button class="modal-close" onclick="document.getElementById('modalInstallWP').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Domain</label>
+        <select class="input" id="wpDomain"></select>
+      </div>
+      <div class="form-group">
+        <label>Site Title</label>
+        <input type="text" class="input" id="wpSiteTitle" placeholder="My WordPress Site">
+      </div>
+      <div class="form-group">
+        <label>Admin Email</label>
+        <input type="email" class="input" id="wpAdminEmail" placeholder="admin@domain.com">
+      </div>
+      <div class="form-group">
+        <label>Admin Username</label>
+        <input type="text" class="input" id="wpAdminUser" value="admin">
+      </div>
+      <div class="form-group">
+        <label>Admin Password <span style="color:var(--text-muted)">(auto-generated if blank)</span></label>
+        <input type="password" class="input" id="wpAdminPw" placeholder="Leave blank to generate">
+      </div>
+      <p style="font-size:0.8125rem;color:var(--text-muted)">Database and user will be created automatically. This may take a minute.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalInstallWP').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="wpInstallBtn" onclick="window.appsMgr.submitWpInstall()">Install</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ WordPress Credentials modal ════════════════ -->
+<div class="modal-backdrop" id="modalWpCreds">
+  <div class="modal-outer" style="max-width:500px"><div class="modal-inner">
+    <div class="modal-header"><h3>WordPress Installed!</h3>
+      <button class="modal-close" onclick="document.getElementById('modalWpCreds').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:var(--space-4)">Save these credentials before closing.</p>
+      <div class="cred-row"><span class="cred-label">Admin URL</span><span class="cred-val" id="wpCredsUrl"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsUrl')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">Admin User</span><span class="cred-val" id="wpCredsAdminUser"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsAdminUser')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">Admin Password</span><span class="cred-val" style="font-family:var(--font-mono)" id="wpCredsAdminPw"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsAdminPw')">Copy</button></div>
+      <div style="border-top:1px solid var(--border);margin:var(--space-4) 0"></div>
+      <div class="cred-row"><span class="cred-label">DB Name</span><span class="cred-val" style="font-family:var(--font-mono)" id="wpCredsDbName"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsDbName')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">DB User</span><span class="cred-val" style="font-family:var(--font-mono)" id="wpCredsDbUser"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsDbUser')">Copy</button></div>
+      <div class="cred-row"><span class="cred-label">DB Password</span><span class="cred-val" style="font-family:var(--font-mono)" id="wpCredsDbPw"></span><button class="btn btn-ghost btn-xs" onclick="window.appsMgr.copyWpCred('wpCredsDbPw')">Copy</button></div>
+    </div>
+    <div class="modal-footer">
+      <a class="btn btn-ghost" id="wpCredsOpenBtn" href="#" target="_blank">Open WP Admin</a>
+      <button class="btn btn-primary" onclick="document.getElementById('modalWpCreds').classList.remove('open')">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Git Config modal ════════════════ -->
+<div class="modal-backdrop" id="modalGitConfig">
+  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Git Deploy — <span id="gitConfigDomain"></span></h3>
+      <button class="modal-close" onclick="document.getElementById('modalGitConfig').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Repository URL</label>
+        <input type="text" class="input mono" id="gitRepoUrl" placeholder="https://github.com/user/repo.git">
+      </div>
+      <div class="form-group">
+        <label>Branch</label>
+        <input type="text" class="input mono" id="gitBranch" value="main" placeholder="main">
+      </div>
+      <div class="form-group">
+        <label>Build Command <span style="color:var(--text-muted)">(optional)</span></label>
+        <input type="text" class="input mono" id="gitBuildCmd" placeholder="npm install && npm run build">
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:var(--space-4);margin-top:var(--space-2)">
+        <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-2)">Webhook (after saving):</p>
+        <div style="display:flex;gap:var(--space-2)">
+          <input type="text" class="input mono" id="gitWebhookUrl" readonly style="flex:1;font-size:0.75rem;color:var(--text-muted)" placeholder="Save config to generate webhook URL">
+          <input type="text" class="input mono" id="gitWebhookSecret" readonly style="width:130px;font-size:0.75rem;color:var(--text-muted)" placeholder="Secret">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalGitConfig').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.appsMgr.saveGitConfig()">Save</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Install PHP modal ════════════════ -->
+<div class="modal-backdrop" id="modalInstallPHP">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Install PHP Version</h3>
+      <button class="modal-close" onclick="document.getElementById('modalInstallPHP').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:var(--space-5)">
+        Installs a PHP version with FPM and common extensions via the ondrej/php PPA. This may take a minute.
+      </p>
+      <div class="form-group">
+        <label>Version</label>
+        <select class="input" id="phpInstallVersion">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalInstallPHP').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="phpInstallBtn" onclick="window.phpMgr.submitInstall()">Install</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Remove PHP modal ════════════════ -->
+<div class="modal-backdrop" id="modalRemovePHP">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Remove PHP Version</h3>
+      <button class="modal-close" onclick="document.getElementById('modalRemovePHP').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary)">
+        Are you sure you want to remove <strong style="font-family:var(--font-mono)">PHP <span id="phpRemoveVersion"></span></strong>?
+        This will purge all related packages and stop the FPM service.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalRemovePHP').classList.remove('open')">Cancel</button>
+      <button class="btn btn-danger" onclick="window.phpMgr.submitRemove()">Remove</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ AutoSSL modal ════════════════ -->
+<div class="modal-backdrop" id="modalAutoSSL">
+  <div class="modal-outer" style="max-width:460px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>AutoSSL</h3>
+      <button class="modal-close" onclick="document.getElementById('modalAutoSSL').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:var(--space-5)">
+        Issues or renews a Let's Encrypt cert for a domain using <code style="font-family:var(--font-mono);font-size:0.8125rem;color:var(--accent)">certbot --apache</code>. The domain must already resolve to this server.
+      </p>
+      <div class="form-group">
+        <label>Domain</label>
+        <input type="text" class="input mono" id="autoSSLDomain" placeholder="example.com">
+        <span class="field-hint">The www subdomain is included automatically.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalAutoSSL').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="autoSSLBtn" onclick="window.ssl.runAutoSSL()">Issue Certificate</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ── User Form Modal ──────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modalUserForm">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 id="userFormTitle">Add User</h3>
+      <button class="modal-close" onclick="document.getElementById('modalUserForm').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="userFormId">
+      <div class="form-group">
+        <label>Username</label>
+        <input id="userFormUsername" class="input" placeholder="username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="userFormPassword" type="password" class="input" placeholder="Password" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="userFormRole" class="input" onchange="usersMgr._toggleDomainPicker ? usersMgr._toggleDomainPicker(this.value) : null">
+          <option value="user">User (domain-scoped)</option>
+          <option value="admin">Admin (full access)</option>
+        </select>
+      </div>
+      <div id="userDomainSection" class="form-group">
+        <label>Assigned Domains</label>
+        <div id="userDomainPicker" style="display:flex;flex-direction:column;gap:.35rem;max-height:180px;overflow-y:auto;padding:.25rem 0"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalUserForm').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="usersMgr.save()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DNS Records Modal ────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modalDnsRecords">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h3>DNS Records — <span id="dnsRecordsDomain"></span></h3>
+      <button class="modal-close" onclick="document.getElementById('modalDnsRecords').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-secondary text-sm" style="margin-bottom:1rem">Add these records at your domain registrar or DNS provider to enable mail delivery.</p>
+      <div id="dnsRecordsList" style="display:flex;flex-direction:column;gap:.75rem"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="document.getElementById('modalDnsRecords').classList.remove('open')">Close</button>
+    </div>
+  </div>
+</div>
+
+  <!-- ── Sidebar resize & collapse ──────────────────────────────────────────── -->
+  <script>
+  (function () {
+    'use strict';
+
+    var LS_WIDTH     = 'dpanel-sidebar-width';
+    var LS_COLLAPSED = 'dpanel-sidebar-collapsed';
+    var DEFAULT_W    = 188;
+    var MIN_W        = 140;
+    var MAX_W_RATIO  = 0.40;
+
+    var storedW      = parseInt(localStorage.getItem(LS_WIDTH), 10) || DEFAULT_W;
+    var wasCollapsed = localStorage.getItem(LS_COLLAPSED) === 'true';
+
+    // Apply width before first paint to avoid FOUC
+    document.documentElement.style.setProperty('--sidebar-w', (wasCollapsed ? 0 : storedW) + 'px');
+    document.body.classList.add('sidebar-instant');
+
+    var currentW  = storedW;
+    var collapsed = wasCollapsed;
+
+    function raf2(fn) {
+      requestAnimationFrame(function () { requestAnimationFrame(fn); });
+    }
+
+    function applyCollapsed(instant) {
+      var sidebar     = document.getElementById('sidebar');
+      var collapseBtn = document.getElementById('sidebarCollapseBtn');
+      var collapseIcon = document.getElementById('sidebarCollapseIcon');
+      var expandTab   = document.getElementById('sidebarExpandTab');
+
+      if (instant) document.body.classList.add('sidebar-instant');
+
+      if (collapsed) {
+        document.documentElement.style.setProperty('--sidebar-w', '0px');
+        if (sidebar)     sidebar.setAttribute('aria-hidden', 'true');
+        if (collapseBtn) collapseBtn.setAttribute('aria-expanded', 'false');
+        if (collapseIcon) collapseIcon.innerHTML = '<path d="M6 3l5 5-5 5"/>';
+        if (expandTab)   expandTab.classList.add('visible');
+      } else {
+        document.documentElement.style.setProperty('--sidebar-w', currentW + 'px');
+        if (sidebar)     sidebar.removeAttribute('aria-hidden');
+        if (collapseBtn) collapseBtn.setAttribute('aria-expanded', 'true');
+        if (collapseIcon) collapseIcon.innerHTML = '<path d="M10 3L5 8l5 5"/>';
+        if (expandTab)   expandTab.classList.remove('visible');
+      }
+
+      if (instant) raf2(function () { document.body.classList.remove('sidebar-instant'); });
+    }
+
+    function toggleCollapse() {
+      collapsed = !collapsed;
+      localStorage.setItem(LS_COLLAPSED, collapsed);
+      applyCollapsed(false);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var handle    = document.getElementById('sidebarResizeHandle');
+      var collapseBtn = document.getElementById('sidebarCollapseBtn');
+      var expandTab = document.getElementById('sidebarExpandTab');
+
+      // Apply persisted collapsed state (DOM now ready)
+      applyCollapsed(true);
+
+      // ── Toggle events ──────────────────────────────────────────────────────
+      if (collapseBtn) collapseBtn.addEventListener('click', toggleCollapse);
+      if (expandTab)   expandTab.addEventListener('click', toggleCollapse);
+
+      // ── Drag resize ────────────────────────────────────────────────────────
+      if (handle) {
+        handle.addEventListener('mousedown', function (e) {
+          if (collapsed) return;
+          e.preventDefault();
+
+          var startX = e.clientX;
+          var startW = currentW;
+
+          document.body.classList.add('sidebar-dragging');
+          document.body.style.userSelect = 'none';
+          document.body.style.cursor = 'col-resize';
+
+          function onMove(e) {
+            var maxW = Math.floor(window.innerWidth * MAX_W_RATIO);
+            var newW = Math.min(maxW, Math.max(MIN_W, startW + (e.clientX - startX)));
+            currentW = newW;
+            document.documentElement.style.setProperty('--sidebar-w', newW + 'px');
+          }
+
+          function onUp() {
+            document.body.classList.remove('sidebar-dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            localStorage.setItem(LS_WIDTH, currentW);
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          }
+
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      }
+
+      // ── Keyboard shortcut: C ───────────────────────────────────────────────
+      document.addEventListener('keydown', function (e) {
+        var tag = document.activeElement ? document.activeElement.tagName : '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (e.key === 'c' || e.key === 'C') toggleCollapse();
+      });
+
+      // ── Clamp width on viewport resize ────────────────────────────────────
+      window.addEventListener('resize', function () {
+        if (collapsed) return;
+        var maxW = Math.floor(window.innerWidth * MAX_W_RATIO);
+        if (currentW > maxW) {
+          currentW = maxW;
+          document.documentElement.style.setProperty('--sidebar-w', currentW + 'px');
+          localStorage.setItem(LS_WIDTH, currentW);
+        }
+      });
+    });
+  }());
+  </script>
+
+<!-- ── [NEW] Sidebar search + collapsible categories IIFE ─────────────────── -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── Constants ────────────────────────────────────────────────────────────── */
+  var LS_PREFIX    = 'dpanel-nav-group-'; // e.g. dpanel-nav-group-hosting = "true"
+  var SEARCH_DELAY = 80;                  // ms debounce — fast enough to feel instant
+
+  /* ── Collapse helpers ─────────────────────────────────────────────────────── */
+
+  /** Read persisted collapsed state for a group element. */
+  function storedCollapsed(groupEl) {
+    var key = groupEl.dataset.group;
+    return key ? localStorage.getItem(LS_PREFIX + key) === 'true' : false;
+  }
+
+  /** Persist collapsed state for a group element. */
+  function storeCollapsed(groupEl, isCollapsed) {
+    var key = groupEl.dataset.group;
+    if (key) localStorage.setItem(LS_PREFIX + key, isCollapsed ? 'true' : 'false');
+  }
+
+  /**
+   * Apply collapsed/expanded visual state to a group.
+   * Adds/removes .is-collapsed, syncs aria-expanded.
+   * Does NOT write to localStorage (caller decides).
+   */
+  function applyGroupCollapse(groupEl, isCollapsed) {
+    var btn = groupEl.querySelector('.nav-group-btn');
+    groupEl.classList.toggle('is-collapsed', isCollapsed);
+    if (btn) btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+  }
+
+  /* ── Search helpers ───────────────────────────────────────────────────────── */
+
+  /**
+   * savedGroupStates[data-group] = true|false
+   * Captured when search first becomes active; restored on clear.
+   */
+  var savedGroupStates = null;
+
+  /** Filter the nav. Empty/blank term = clear search. */
+  function filterNav(term) {
+    var groups   = document.querySelectorAll('.nav-group');
+    var q        = term.trim().toLowerCase();
+    var emptyMsg = document.getElementById('navSearchEmpty');
+
+    if (!q) {
+      /* ── Clear search: restore pre-search collapsed states ────────────────── */
+      groups.forEach(function (group) {
+        var key       = group.dataset.group || '';
+        var wasCollapsed = savedGroupStates ? savedGroupStates[key] : storedCollapsed(group);
+
+        // Unhide all items in this group
+        group.querySelectorAll('.nav-item').forEach(function (item) {
+          item.classList.remove('nav-hidden');
+        });
+
+        // Restore collapsed state (no localStorage write — state never changed)
+        applyGroupCollapse(group, wasCollapsed);
+        group.classList.remove('nav-group-hidden');
+      });
+
+      savedGroupStates = null; // reset snapshot
+      if (emptyMsg) emptyMsg.style.display = 'none';
+      syncCollapseAllBtn(); // re-sync after states are restored
+      return;
+    }
+
+    /* ── Active search ────────────────────────────────────────────────────────── */
+
+    // Snapshot collapsed states the first time search fires
+    if (!savedGroupStates) {
+      savedGroupStates = {};
+      groups.forEach(function (group) {
+        var key = group.dataset.group || '';
+        savedGroupStates[key] = group.classList.contains('is-collapsed');
+      });
+    }
+
+    var totalVisible = 0;
+
+    groups.forEach(function (group) {
+      var items      = group.querySelectorAll('.nav-item');
+      var groupMatch = false;
+
+      items.forEach(function (item) {
+        // data-label is the canonical match target (no badge noise)
+        var label   = (item.dataset.label || item.textContent || '').toLowerCase();
+        var matches = label.indexOf(q) !== -1;
+        item.classList.toggle('nav-hidden', !matches);
+        if (matches) { groupMatch = true; totalVisible++; }
+      });
+
+      if (groupMatch) {
+        // Auto-expand groups that contain matches
+        applyGroupCollapse(group, false);
+        group.classList.remove('nav-group-hidden');
+      } else {
+        // Fully hide groups with zero matches
+        group.classList.add('nav-group-hidden');
+      }
+    });
+
+    // Show/hide "no results" message
+    if (emptyMsg) emptyMsg.style.display = totalVisible === 0 ? '' : 'none';
+  }
+
+  /* ── Collapse-all button sync ────────────────────────────────────────────── */
+
+  /**
+   * Reads current group states and updates the collapse-all button label + icon.
+   * "Collapse all" when any group is expanded; "Expand all" when all are collapsed.
+   * Called after any group state change so the button always reflects reality.
+   */
+  function syncCollapseAllBtn() {
+    var btn   = document.getElementById('navCollapseAllBtn');
+    var label = document.getElementById('navCollapseAllLabel');
+    if (!btn || !label) return;
+
+    var groups      = document.querySelectorAll('.nav-group');
+    var allCollapsed = Array.from(groups).every(function (g) {
+      return g.classList.contains('is-collapsed');
+    });
+
+    label.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+    btn.setAttribute('aria-label', allCollapsed ? 'Expand all categories' : 'Collapse all categories');
+    // Rotate icon 180° in expand-all state (chevrons now point up)
+    btn.classList.toggle('is-all-collapsed', allCollapsed);
+  }
+
+  /* ── Init on DOMContentLoaded ─────────────────────────────────────────────── */
+
+  document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── 1. Restore persisted collapsed states ────────────────────────────────── */
+    document.querySelectorAll('.nav-group').forEach(function (group) {
+      var isCollapsed = storedCollapsed(group);
+      applyGroupCollapse(group, isCollapsed);
+
+      /* Wire toggle button */
+      var btn = group.querySelector('.nav-group-btn');
+      if (btn) {
+        btn.addEventListener('click', function () {
+          // If a search is active, don't persist — user is just browsing results
+          var searchInput = document.getElementById('sidebarSearch');
+          var searching   = searchInput && searchInput.value.trim().length > 0;
+
+          var nowCollapsed = !group.classList.contains('is-collapsed');
+          applyGroupCollapse(group, nowCollapsed);
+
+          if (!searching) {
+            storeCollapsed(group, nowCollapsed);
+            // Update snapshot so clear-search restores the new state
+            if (savedGroupStates && group.dataset.group) {
+              savedGroupStates[group.dataset.group] = nowCollapsed;
+            }
+          }
+          // Keep collapse-all button in sync after individual toggle
+          syncCollapseAllBtn();
+        });
+      }
+    });
+
+    // Sync button after initial states are applied
+    syncCollapseAllBtn();
+
+    /* ── 1b. Wire collapse-all / expand-all button ──────────────────────────── */
+    var collapseAllBtn = document.getElementById('navCollapseAllBtn');
+    if (collapseAllBtn) {
+      collapseAllBtn.addEventListener('click', function () {
+        var groups       = document.querySelectorAll('.nav-group');
+        var allCollapsed = Array.from(groups).every(function (g) {
+          return g.classList.contains('is-collapsed');
+        });
+        // If all are already collapsed → expand all; otherwise collapse all
+        var target = !allCollapsed;
+
+        groups.forEach(function (group) {
+          applyGroupCollapse(group, target);
+          storeCollapsed(group, target);
+          // Keep per-group snapshot current so search clear restores correctly
+          if (savedGroupStates && group.dataset.group) {
+            savedGroupStates[group.dataset.group] = target;
+          }
+        });
+
+        syncCollapseAllBtn();
+      });
+    }
+
+    /* ── 2. Insert "no results" message node into nav ───────────────────────── */
+    var nav       = document.querySelector('.sidebar-nav');
+    var emptyMsg  = document.createElement('div');
+    emptyMsg.id        = 'navSearchEmpty';
+    emptyMsg.className = 'nav-search-empty';
+    emptyMsg.textContent = 'No matches';
+    emptyMsg.style.display = 'none';
+    if (nav) nav.appendChild(emptyMsg);
+
+    /* ── 3. Wire keyboard navigation ────────────────────────────────────────── */
+    // Allow arrow keys to move between visible nav items, and ↑ from the
+    // first item returns focus to the search box.
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+      // Ensure items are keyboard-focusable (existing click handler fires on Enter)
+      if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+
+      item.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        e.preventDefault();
+
+        // Collect all currently visible + uncollapsed items
+        var visible = Array.from(
+          document.querySelectorAll('.nav-group:not(.nav-group-hidden):not(.is-collapsed) .nav-item:not(.nav-hidden)')
+        );
+        var idx  = visible.indexOf(item);
+        var next;
+
+        if (e.key === 'ArrowDown') {
+          next = visible[idx + 1] || null;
+        } else {
+          // ↑ from first item → jump to search input
+          if (idx === 0) {
+            var si = document.getElementById('sidebarSearch');
+            if (si) si.focus();
+            return;
+          }
+          next = visible[idx - 1] || null;
+        }
+
+        if (next) next.focus();
+      });
+    });
+
+    /* ── 4. Wire search input ────────────────────────────────────────────────── */
+    var searchInput = document.getElementById('sidebarSearch');
+    var clearBtn    = document.getElementById('sidebarSearchClear');
+
+    if (!searchInput) return;
+
+    var debounceTimer = 0;
+
+    searchInput.addEventListener('input', function () {
+      var val = searchInput.value;
+
+      // Show/hide clear button
+      if (clearBtn) clearBtn.hidden = !val;
+
+      // Debounce to avoid DOM thrashing on each keystroke
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () { filterNav(val); }, SEARCH_DELAY);
+    });
+
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        if (searchInput.value) {
+          // First Escape: clear the query
+          searchInput.value = '';
+          if (clearBtn) clearBtn.hidden = true;
+          filterNav('');
+        } else {
+          // Second Escape: blur the input
+          searchInput.blur();
+        }
+        return;
+      }
+
+      // ↓ from search box → focus first visible nav item
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var first = document.querySelector(
+          '.nav-group:not(.nav-group-hidden):not(.is-collapsed) .nav-item:not(.nav-hidden)'
+        );
+        if (first) first.focus();
+      }
+    });
+
+    // Custom clear button
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        searchInput.value = '';
+        clearBtn.hidden = true;
+        filterNav('');
+        searchInput.focus();
+      });
+    }
+
+    // Global keyboard shortcut: "/" focuses the sidebar search
+    // (only when not already typing in an input)
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== '/') return;
+      var tag = document.activeElement ? document.activeElement.tagName : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    });
+  });
+
+}());
+</script>
+
+<!-- ── DNS Modals ──────────────────────────────────────────────────────────── -->
+
+<!-- Add Zone Modal -->
+<div class="modal-backdrop" id="dnsAddZoneModal">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add DNS Zone</h3>
+      <button class="modal-close btn btn-ghost" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">
+        Creates a BIND9 zone file with standard A, MX, SPF, and DMARC records.
+        Point the domain's nameservers to <code>ns1.danhorntx.com</code> and <code>ns2.danhorntx.com</code>.
+      </p>
+      <form id="dnsAddZoneForm">
+        <div class="form-group">
+          <label>Domain</label>
+          <input type="text" class="input mono" id="dnsNewDomain" placeholder="example.com" required autocomplete="off" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label>Server IP <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="text" class="input mono" id="dnsNewIp" placeholder="<server-1-ip>">
+          <span class="field-hint">Leave blank to use the default server IP.</span>
+        </div>
+        <div class="modal-footer" style="padding:0;margin-top:var(--space-4)">
+          <button type="button" class="btn btn-ghost modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Zone</button>
+        </div>
+      </form>
+    </div>
+  </div></div>
+</div>
+
+<!-- Add Record Modal -->
+<div class="modal-backdrop" id="dnsAddRecordModal">
+  <div class="modal-outer" style="max-width:460px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Add DNS Record</h3>
+      <button class="modal-close btn btn-ghost" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="dnsAddRecordForm">
+        <div class="form-group">
+          <label>Name <span style="color:var(--text-muted);font-weight:400">(host)</span></label>
+          <input type="text" class="input mono" id="dnsRecName" placeholder="@ or subdomain" required autocomplete="off" spellcheck="false">
+          <span class="field-hint">Use @ for the root domain, or enter a subdomain like <code>mail</code> or <code>www</code>.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)">
+          <div class="form-group">
+            <label>Type</label>
+            <select class="input" id="dnsRecType">
+              <option value="A">A</option>
+              <option value="AAAA">AAAA</option>
+              <option value="CNAME">CNAME</option>
+              <option value="MX">MX</option>
+              <option value="TXT">TXT</option>
+              <option value="SRV">SRV</option>
+              <option value="CAA">CAA</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>TTL <span style="color:var(--text-muted);font-weight:400">(seconds)</span></label>
+            <input type="number" class="input mono" id="dnsRecTtl" value="14400" min="60" max="604800">
+          </div>
+        </div>
+        <div class="form-group" id="dnsRecPriorityRow" style="display:none">
+          <label>Priority</label>
+          <input type="number" class="input mono" id="dnsRecPriority" value="10" min="1" max="100">
+        </div>
+        <div class="form-group">
+          <label>Value</label>
+          <input type="text" class="input mono" id="dnsRecValue" placeholder="e.g. <server-1-ip>" required autocomplete="off" spellcheck="false">
+        </div>
+        <div class="modal-footer" style="padding:0;margin-top:var(--space-4)">
+          <button type="button" class="btn btn-ghost modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Record</button>
+        </div>
+      </form>
     </div>
   </div></div>
 </div>
@@ -505,6 +2945,18 @@
 <script src="/js/ssl.js"></script>
 <script src="/js/logs.js"></script>
 <script src="/js/terminal.js"></script>
+<script src="/js/settings.js"></script>
+<script src="/js/ftp.js"></script>
+<script src="/js/php.js"></script>
+<script src="/js/mysql.js"></script>
+<script src="/js/files.js"></script>
+<script src="/js/apps.js"></script>
+<script src="/js/cron.js"></script>
+<script src="/js/backup.js"></script>
+<script src="/js/firewall.js"></script>
+<script src="/js/users.js"></script>
+<script src="/js/dns.js"></script>
+<script src="/js/analytics.js"></script>
 
 <script>
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -512,8 +2964,10 @@ const navItems = document.querySelectorAll('.nav-item[data-section]');
 const sections = document.querySelectorAll('.page-section');
 const topbarSection = document.getElementById('topbarSection');
 const sectionNames = {
-  dashboard: 'Dashboard', domains: 'Domains', mail: 'Mail',
-  ssl: 'SSL Certs', logs: 'Logs', terminal: 'Terminal'
+  dashboard: 'Dashboard', analytics: 'DAnalytics', domains: 'Domains', mail: 'Mail', dns: 'DNS Manager',
+  ssl: 'SSL Certs', php: 'PHP', mysql: 'MySQL', phpmyadmin: 'phpMyAdmin', files: 'File Manager',
+  apps: 'Apps', cron: 'Cron Jobs', backup: 'Backups', firewall: 'Firewall',
+  users: 'Users', logs: 'Logs', terminal: 'Terminal', settings: 'Settings'
 };
 
 function navigate(sectionId) {
@@ -526,9 +2980,24 @@ function navigate(sectionId) {
   // Lazy-load section data
   if (sectionId === 'domains') window.domains.load();
   if (sectionId === 'mail')    window.mail.loadAll();
-  if (sectionId === 'ssl')     window.ssl.load();
-  if (sectionId === 'logs')    window.logs.load();
+  if (sectionId === 'ssl')      window.ssl.load();
+  if (sectionId === 'php')      window.phpMgr.load();
+  if (sectionId === 'mysql')    window.mysqlMgr.load();
+  if (sectionId === 'files')    window.filesMgr.load();
+  if (sectionId === 'apps')     window.appsMgr.load();
+  if (sectionId === 'cron')     window.cronMgr.load();
+  if (sectionId === 'backup')   window.backupMgr.load();
+  if (sectionId === 'firewall') window.firewallMgr.load();
+  if (sectionId === 'users')    { window.usersMgr.load(); window.usersMgr.loadAuditLog(); }
+  if (sectionId === 'phpmyadmin') {
+    const frame = document.getElementById('phpmyadminFrame');
+    if (frame && !frame.dataset.loaded) { frame.src = '/phpmyadmin'; frame.dataset.loaded = '1'; }
+  }
+  if (sectionId === 'analytics') window.analyticsModule && window.analyticsModule.init();
+  if (sectionId === 'dns')      window.dnsMgr && window.dnsMgr.init();
+  if (sectionId === 'logs')     window.logs.load();
   if (sectionId === 'terminal') window.terminal.init();
+  if (sectionId === 'settings') window.settings.init();
 }
 
 navItems.forEach(n => n.addEventListener('click', () => navigate(n.dataset.section)));
@@ -541,14 +3010,17 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
 function updateClock() {
-  document.getElementById('topbarClock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const now  = new Date();
+  const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  document.getElementById('topbarClock').textContent = date + '  ·  ' + time;
 }
 updateClock();
 setInterval(updateClock, 1000);
 
 // ── Toast system ──────────────────────────────────────────────────────────────
 window.toast = function(type, title, msg) {
-  const icons = { success: '✓', error: '✕', warning: '⚠' };
+  const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   el.innerHTML = `<span class="toast-icon">${icons[type] || '·'}</span>
@@ -572,8 +3044,38 @@ document.addEventListener('mousemove', e => {
   });
 });
 
+// ── Domain context switcher ───────────────────────────────────────────────────
+async function switchActiveDomain(domain) {
+  await api.post('/auth/active-domain', { domain });
+}
+
+async function initUserSession() {
+  const data = await api.get('/auth/me');
+  if (!data?.success) return;
+  // Update sidebar user display
+  document.getElementById('userName').textContent  = data.username || 'admin';
+  document.getElementById('userAvatar').textContent = (data.username || 'A')[0].toUpperCase();
+  document.getElementById('userRole').textContent   = data.role === 'admin' ? 'Administrator' : 'User';
+  // Show/hide Users nav for admins only
+  const navUsers = document.getElementById('navUsers');
+  if (navUsers) navUsers.style.display = data.role === 'admin' ? '' : 'none';
+  // Populate domain switcher for scoped users
+  if (data.role !== 'admin' && data.domains && data.domains.length > 1) {
+    const wrap     = document.getElementById('domainSwitcherWrap');
+    const switcher = document.getElementById('domainSwitcher');
+    data.domains.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      if (d === data.activeDomain) opt.selected = true;
+      switcher.appendChild(opt);
+    });
+    wrap.style.display = '';
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.dashboard.init();
+initUserSession();
 </script>
 </body>
 </html>

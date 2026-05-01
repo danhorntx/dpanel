@@ -107,13 +107,40 @@ window.dashboard = (() => {
   }
 
   async function restart(svc) {
+    toast('warning', `Restarting ${svc}…`);
     try {
-      await api.post('/api/dashboard/stats', {}); // dummy — use shell directly
-      toast('warning', `Restarting ${svc}...`);
-      // We'll hit the domains route which uses shell — but for services we need a direct endpoint
-      // For now show a message
-      toast('warning', 'Restart', `Use the Terminal to run: systemctl restart ${svc}`);
-    } catch(e) { toast('error', 'Error', e.message); }
+      const data = await api.post('/api/dashboard/restart', { service: svc });
+      if (data.success) {
+        toast('success', `${svc} restarted`, data.active ? 'Service is now running.' : 'Service started but may still be initializing.');
+        setTimeout(refresh, 1500);
+      } else {
+        toast('error', `Failed to restart ${svc}`, data.error || 'Unknown error');
+      }
+    } catch(e) {
+      toast('error', 'Unexpected error', e.message);
+    }
+  }
+
+  async function reboot() {
+    const btn = document.getElementById('rebootConfirmBtn');
+    btn.disabled    = true;
+    btn.textContent = 'Rebooting…';
+    try {
+      await api.post('/api/dashboard/reboot', {});
+      document.getElementById('modalReboot').classList.remove('open');
+      toast('warning', 'Server rebooting', 'The panel will be unavailable for ~60 seconds.');
+      // Poll until the server comes back
+      setTimeout(function poll() {
+        fetch('/api/dashboard/stats').then(r => {
+          if (r.ok) { toast('success', 'Server is back online', 'Reboot complete.'); window.dashboard.refresh(); }
+          else setTimeout(poll, 3000);
+        }).catch(() => setTimeout(poll, 3000));
+      }, 10000);
+    } catch(e) {
+      toast('error', 'Reboot failed', e.message);
+      btn.disabled    = false;
+      btn.textContent = 'Yes, Reboot Now';
+    }
   }
 
   function init() {
@@ -125,5 +152,5 @@ window.dashboard = (() => {
     pollTimer = setInterval(refresh, 10000);
   }
 
-  return { init, refresh, restart };
+  return { init, refresh, restart, reboot };
 })();

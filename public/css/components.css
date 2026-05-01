@@ -86,8 +86,8 @@
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 @media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -111,7 +111,7 @@
   background: var(--bg-surface);
   border-radius: calc(var(--radius-xl) - 2px);
   box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-4) var(--space-5);
 }
 
 /* Spotlight border on hover */
@@ -130,7 +130,7 @@
 .card-outer:hover::before { opacity: 1; }
 
 .stat-card .card-inner {
-  padding: var(--space-5) var(--space-5);
+  padding: var(--space-4) var(--space-4);
 }
 
 .stat-label {
@@ -186,9 +186,9 @@
 /* ── Service status panel ────────────────────────────────────────────────────── */
 .services-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-3);
-  margin-bottom: var(--space-8);
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
 .service-card .card-inner {
@@ -252,7 +252,31 @@ tbody td {
 }
 
 .td-mono { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-secondary); }
-.td-actions { display: flex; gap: var(--space-2); align-items: center; }
+.td-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
+
+/* ── Domains table — fixed layout, no horizontal scroll ─────────────────────── */
+#section-domains .table-wrap { overflow-x: hidden; }
+#section-domains table       { table-layout: fixed; }
+#section-domains col.col-domain  { width: 16%; }
+#section-domains col.col-docroot { width: 28%; }
+#section-domains col.col-ssl     { width: 10%; }
+#section-domains col.col-status  { width: 12%; }
+#section-domains col.col-actions { width: 34%; }
+#section-domains td.td-truncate  {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0; /* required for ellipsis with table-layout:fixed */
+}
+#section-domains td.td-truncate:hover { cursor: default; }
+
+/* Actions column — keep buttons on one line, right-aligned, never wrap */
+#section-domains .td-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+#section-domains .td-actions .btn { white-space: nowrap; flex-shrink: 0; }
 
 /* ── Badges ──────────────────────────────────────────────────────────────────── */
 .badge {
@@ -400,6 +424,31 @@ select.input {
   line-height: 1;
 }
 .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ── Credential rows (used in setup/mysql/wp modals) ────────────────────────── */
+.cred-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+.cred-row:last-child { border-bottom: none; }
+.cred-label {
+  width: 120px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.cred-val {
+  flex: 1;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+/* ── td-actions ──────────────────────────────────────────────────────────────── */
+.td-actions { display: flex; gap: var(--space-2); }
 
 /* ── Toast notifications ─────────────────────────────────────────────────────── */
 .toast-container {
@@ -597,3 +646,21 @@ select.input {
 .dns-table td:nth-child(2) { font-family: var(--font-mono); color: var(--text-secondary); }
 .dns-copy { cursor: pointer; }
 .dns-copy:hover { color: var(--accent); }
+
+/* ── DNS record rows (mail DKIM panel) ───────────────────────────────────────── */
+.dns-record-row { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .75rem 1rem; }
+.dns-record-meta { display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem; flex-wrap: wrap; }
+.dns-record-name  { color: var(--text-secondary); margin-bottom: .2rem; word-break: break-all; }
+.dns-record-value { color: var(--text-primary); word-break: break-all; }
+
+/* ── Checkbox row (user domain picker) ───────────────────────────────────────── */
+.checkbox-row { display: flex; align-items: center; gap: .5rem; font-size: .875rem; cursor: pointer; padding: .2rem 0; }
+.checkbox-row input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: var(--primary); }
+
+/* ── Badges ──────────────────────────────────────────────────────────────────── */
+.badge { display: inline-flex; align-items: center; padding: .15rem .5rem; border-radius: 99px; font-size: .75rem; font-weight: 600; }
+.badge-green  { background: rgba(34,197,94,.15);  color: #22c55e; }
+.badge-blue   { background: rgba(59,130,246,.15); color: #3b82f6; }
+.badge-yellow { background: rgba(234,179,8,.15);  color: #ca8a04; }
+.badge-red    { background: rgba(239,68,68,.15);  color: #ef4444; }
+.badge-purple { background: rgba(168,85,247,.15); color: #a855f7; }

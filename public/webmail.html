@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DPanel Webmail</title>
+  <!-- DPanel design-system tokens + components -->
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <style>
+/* ═══════════════════════════════════════════════════════
+   WEBMAIL — layout & component overrides
+   Tokens come from /css/base.css (already loaded above)
+═══════════════════════════════════════════════════════ */
+
+/* ── Layout variables ─────────────────────────────────── */
+:root {
+  --wm-sidebar-w:  228px;
+  --wm-list-w:     300px;
+  --wm-topbar-h:   48px;
+}
+
+/* ── Root reset ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { display: flex; flex-direction: column; background: var(--bg-base); color: var(--text-primary); font-family: var(--font-ui); }
+
+/* ── Toast notifications ──────────────────────────────── */
+#wmToastStack {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.wm-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  pointer-events: all;
+  animation: wmToastIn var(--duration-base) var(--ease-out-expo);
+  max-width: 320px;
+}
+.wm-toast.exiting { animation: wmToastOut var(--duration-fast) var(--ease-out-expo) forwards; }
+.wm-toast-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.wm-toast.success .wm-toast-dot { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+.wm-toast.error   .wm-toast-dot { background: var(--accent-red);   box-shadow: 0 0 6px var(--accent-red); }
+.wm-toast.info    .wm-toast-dot { background: var(--accent);        box-shadow: 0 0 6px var(--accent); }
+@keyframes wmToastIn  { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes wmToastOut { to   { opacity: 0; transform: translateY(4px) scale(.96); } }
+
+/* ── Login screen ─────────────────────────────────────── */
+#loginScreen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--bg-base);
+}
+.wm-login-card {
+  width: 100%;
+  max-width: 380px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 3px;
+  box-shadow: var(--shadow-elevated);
+  animation: fadeUp var(--duration-slow) var(--ease-out-expo);
+}
+.wm-login-inner {
+  background: var(--bg-surface);
+  border-radius: calc(var(--radius-xl) - 3px);
+  padding: var(--space-8) var(--space-6);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+.wm-login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.wm-login-logo {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent) 0%, #7b5cf6 100%);
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem; font-weight: 500; color: #fff;
+  letter-spacing: -0.03em;
+  box-shadow: 0 4px 16px rgba(79,142,247,0.4);
+  flex-shrink: 0;
+}
+.wm-login-title { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.025em; }
+.wm-login-sub   { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+
+.form-group { margin-bottom: var(--space-4); }
+.form-group label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+  letter-spacing: 0.02em;
+}
+.input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  padding: 9px var(--space-3);
+  outline: none;
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+  -webkit-appearance: none;
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+.input::placeholder { color: var(--text-muted); }
+
+#loginError {
+  display: none;
+  font-size: 0.8125rem;
+  color: var(--accent-red);
+  background: var(--accent-red-dim);
+  border: 1px solid rgba(247,95,95,0.2);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.wm-login-back {
+  margin-top: var(--space-5);
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.wm-login-back a { color: var(--accent); }
+.wm-login-back a:hover { text-decoration: underline; }
+
+/* ── App shell ────────────────────────────────────────── */
+#app {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+#app.visible { display: flex; }
+
+/* ── Mobile overlay ───────────────────────────────────── */
+#mobileNavOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  z-index: 49;
+}
+body.sidebar-open #mobileNavOverlay { display: block; }
+
+/* ── Folder sidebar ───────────────────────────────────── */
+#folderSidebar {
+  width: var(--wm-sidebar-w);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+  transition: transform var(--duration-base) var(--ease-out-expo);
+}
+
+.wm-sidebar-header {
+  height: var(--wm-topbar-h);
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wm-sidebar-logo {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent) 0%, #7b5cf6 100%);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.65rem; font-weight: 500; color: #fff;
+  box-shadow: 0 2px 8px rgba(79,142,247,0.4);
+  flex-shrink: 0;
+}
+.wm-sidebar-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  flex: 1;
+}
+#closeSidebarBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  line-height: 1;
+}
+#closeSidebarBtn:hover { color: var(--text-primary); background: var(--bg-elevated); }
+
+.wm-compose-wrap { padding: var(--space-3) var(--space-2); flex-shrink: 0; }
+.wm-compose-btn {
+  width: 100%;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.folder-list { flex: 1; overflow-y: auto; padding: var(--space-1) 0; }
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px var(--space-3);
+  margin: 1px var(--space-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: background var(--duration-fast), color var(--duration-fast);
+  user-select: none;
+}
+.folder-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.folder-item.active { background: var(--accent-dim); color: var(--accent); }
+.folder-item.active .folder-icon-svg { color: var(--accent); }
+.folder-icon-svg {
+  width: 15px; height: 15px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color var(--duration-fast);
+}
+.folder-item:hover .folder-icon-svg { color: var(--text-secondary); }
+.folder-name { flex: 1; }
+.folder-count {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+}
+
+.wm-sidebar-footer {
+  padding: var(--space-3) var(--space-2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#wmAccountLabel {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 0 var(--space-1);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wm-signout-btn { width: 100%; justify-content: center; }
+
+/* ── Message list pane ────────────────────────────────── */
+#msgListPane {
+  width: var(--wm-list-w);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.pane-header {
+  height: var(--wm-topbar-h);
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+#hamburgerBtn {
+  flex-shrink: 0;
+  display: none; /* shown on mobile via media query */
+}
+#currentMailboxLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+#pageLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: center;
+}
+
+#msgList { flex: 1; overflow-y: auto; }
+
+.msg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-6);
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+.msg-empty svg { color: var(--text-muted); opacity: 0.4; margin-bottom: var(--space-2); }
+
+.msg-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  gap: var(--space-2);
+}
+.msg-loading::before {
+  content: '';
+  width: 14px; height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.msg-item {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  position: relative;
+}
+.msg-item:last-child { border-bottom: none; }
+.msg-item:hover  { background: var(--bg-surface); }
+.msg-item.active { background: var(--accent-dim); }
+.msg-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+
+.msg-row1 { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 3px; }
+.unread-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 5px rgba(79,142,247,.5);
+}
+.read-spacer { width: 6px; flex-shrink: 0; }
+.msg-from {
+  flex: 1;
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.msg-item.unread .msg-from { font-weight: 600; color: var(--text-primary); }
+.msg-date {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.msg-subj {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 14px; /* align with text after dot */
+}
+.msg-item.unread .msg-subj { color: var(--text-secondary); }
+
+/* ── Message reader ───────────────────────────────────── */
+#msgReader {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-base);
+  min-width: 0;
+}
+
+#emptyReader {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+#emptyReader svg { opacity: 0.25; }
+
+#readerContent {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+}
+
+#readerHeader {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.reader-hdr-info { flex: 1; min-width: 0; }
+#readerSubject {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#readerMeta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.reader-hdr-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+#readerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+}
+#readerText {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#readerText iframe {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-md);
+  background: #fff;
+  min-height: 200px;
+}
+
+/* ── Back button (mobile reader) ─────────────────────── */
+#mobileBackBtn { display: none; }
+
+/* ── Compose modal ────────────────────────────────────── */
+.wm-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--space-5);
+}
+.wm-modal-bg.open { display: flex; }
+
+.wm-compose-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  width: 520px;
+  max-width: 100%;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-elevated);
+  animation: composeIn var(--duration-base) var(--ease-out-expo);
+}
+@keyframes composeIn {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+.wm-compose-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.wm-compose-body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  overflow-y: auto;
+}
+.wm-compose-body textarea {
+  flex: 1;
+  min-height: 180px;
+  resize: none;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.wm-compose-footer {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  :root {
+    --wm-list-w: 260px;
+  }
+}
+
+@media (max-width: 680px) {
+  /* On mobile: sidebar slides in as drawer */
+  #folderSidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100%;
+    transform: translateX(-100%);
+    transition: transform var(--duration-base) var(--ease-out-expo);
+  }
+  body.sidebar-open #folderSidebar { transform: translateX(0); }
+  #closeSidebarBtn { display: block; }
+  #hamburgerBtn    { display: flex !important; }
+  #mobileBackBtn   { display: flex; }
+
+  /* Message list fills full width */
+  #msgListPane { width: 100%; border-right: none; }
+
+  /* Reader hidden by default on mobile; shown when message is selected */
+  #msgReader {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    transform: translateX(100%);
+    transition: transform var(--duration-base) var(--ease-out-expo);
+  }
+  #app.reader-open #msgReader {
+    transform: translateX(0);
+  }
+
+  /* Compose goes full-width on mobile */
+  .wm-modal-bg { padding: 0; align-items: flex-end; justify-content: stretch; }
+  .wm-compose-card { width: 100%; border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-height: 90vh; }
+
+  #readerBody { padding: var(--space-4); }
+  #readerHeader { padding: var(--space-3) var(--space-4); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+
+/* Spin animation (for loading state) */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Compose enhancements ─────────────────────────────── */
+.wm-compose-torow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.wm-compose-torow .input { flex: 1; min-width: 0; }
+#ccBccRow { display: none; flex-direction: column; gap: var(--space-2); }
+#ccBccRow.open { display: flex; }
+.wm-draft-status {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-right: auto;
+  align-self: center;
+  white-space: nowrap;
+  min-width: 1px;
+}
+.wm-draft-status.saved   { color: var(--accent-green); }
+.wm-draft-status.saving  { color: var(--text-muted); }
+.wm-draft-status.editing { color: var(--text-secondary); }
+.wm-draft-status.failed  { color: var(--accent-red); }
+
+/* ── Spam badge ───────────────────────────────────────── */
+.spam-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+.spam-badge.spam  { background: rgba(220,60,60,.12); color: #e05353; }
+.spam-badge.clean { background: rgba(60,180,100,.12); color: #4aba79; }
+#readerSpam { padding: 0 var(--space-5) var(--space-2); }
+
+/* ── Keyboard shortcut help overlay ──────────────────── */
+#kbdHelp {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0,0,0,.55);
+  align-items: center;
+  justify-content: center;
+}
+#kbdHelp.open { display: flex; }
+.kbd-help-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  min-width: 260px;
+  box-shadow: var(--shadow-elevated);
+}
+.kbd-help-card h3 { font-size: .9rem; margin-bottom: var(--space-4); color: var(--text-primary); }
+.kbd-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: .8125rem; }
+.kbd-row kbd {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--text-secondary);
+}
+.kbd-row span { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+<!-- ── Toast stack ─────────────────────────────────────────────────────────── -->
+<div id="wmToastStack"></div>
+
+<!-- ── Mobile sidebar overlay ─────────────────────────────────────────────── -->
+<div id="mobileNavOverlay" onclick="wm.closeSidebar()"></div>
+
+<!-- ── Login screen ───────────────────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="wm-login-card">
+    <div class="wm-login-inner">
+      <div class="wm-login-brand">
+        <div class="wm-login-logo">DP</div>
+        <div>
+          <div class="wm-login-title">DPanel Mail</div>
+          <div class="wm-login-sub">Webmail client</div>
+        </div>
+      </div>
+      <form id="loginForm" onsubmit="wm.login(event)">
+        <div class="form-group">
+          <label for="wmEmail">Email address</label>
+          <input id="wmEmail" type="email" class="input" placeholder="you@example.com"
+                 autocomplete="username" required spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label for="wmPassword">Password</label>
+          <input id="wmPassword" type="password" class="input" placeholder="••••••••"
+                 autocomplete="current-password" required>
+        </div>
+        <div id="loginError"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">Sign in</button>
+      </form>
+      <div class="wm-login-back">
+        <a href="/dashboard">← Back to control panel</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── App shell ───────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Folder sidebar -->
+  <div id="folderSidebar" role="navigation" aria-label="Mail folders">
+    <div class="wm-sidebar-header">
+      <div class="wm-sidebar-logo" aria-hidden="true">DP</div>
+      <span class="wm-sidebar-name">Mail</span>
+      <button id="closeSidebarBtn" onclick="wm.closeSidebar()" aria-label="Close navigation">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="wm-compose-wrap">
+      <button class="btn btn-primary btn-sm wm-compose-btn" id="composeBtn" onclick="wm.openCompose()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Compose
+      </button>
+    </div>
+
+    <div class="folder-list" id="folderList" role="list">
+      <!-- populated by JS -->
+    </div>
+
+    <div class="wm-sidebar-footer">
+      <div id="wmAccountLabel"></div>
+      <button class="btn btn-ghost btn-sm wm-signout-btn" onclick="wm.logout()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+    </div>
+  </div>
+
+  <!-- Message list pane -->
+  <div id="msgListPane" role="main">
+    <div class="pane-header">
+      <button class="btn btn-ghost btn-icon" id="hamburgerBtn"
+              onclick="wm.openSidebar()" aria-label="Open navigation">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span id="currentMailboxLabel">INBOX</span>
+      <div class="pager">
+        <button class="btn btn-ghost btn-xs" id="prevPage" onclick="wm.prevPage()" aria-label="Previous page">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span id="pageLabel"></span>
+        <button class="btn btn-ghost btn-xs" id="nextPage" onclick="wm.nextPage()" aria-label="Next page">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="msgList" role="list"></div>
+  </div>
+
+  <!-- Message reader -->
+  <div id="msgReader" role="region" aria-label="Message content">
+
+    <!-- Empty state -->
+    <div id="emptyReader">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+        <polyline points="22,6 12,13 2,6"/>
+      </svg>
+      Select a message to read
+    </div>
+
+    <!-- Reader content (hidden until message selected) -->
+    <div id="readerContent">
+      <div id="readerHeader">
+        <button id="mobileBackBtn" class="btn btn-ghost btn-sm"
+                onclick="wm.closeReader()" aria-label="Back to message list">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <div class="reader-hdr-info">
+          <div id="readerSubject"></div>
+          <div id="readerMeta"></div>
+        </div>
+        <div class="reader-hdr-actions">
+          <button class="btn btn-ghost btn-sm" id="markReadBtn" onclick="wm.toggleRead()">Mark Unread</button>
+          <button class="btn btn-secondary btn-sm" id="replyBtn" onclick="wm.reply()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+            Reply
+          </button>
+          <button class="btn btn-danger btn-sm" id="deleteBtn" onclick="wm.deleteMsg()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+      <div id="readerSpam" style="display:none"></div>
+      <div id="readerBody">
+        <div id="readerText"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<!-- ── Compose modal ──────────────────────────────────────────────────────── -->
+<div class="wm-modal-bg" id="composeModal" onclick="wm.composeBackdrop(event)">
+  <div class="wm-compose-card" role="dialog" aria-modal="true" aria-label="Compose new message">
+    <div class="wm-compose-header">
+      <span>New Message</span>
+      <button class="btn btn-ghost btn-xs" onclick="wm.closeCompose()" aria-label="Close compose">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="wm-compose-body">
+      <div class="wm-compose-torow">
+        <input id="composeTo" class="input" placeholder="To" type="email" autocomplete="off" spellcheck="false">
+        <button class="btn btn-ghost btn-xs" id="ccBccToggle" onclick="wm.toggleCcBcc()" title="Add CC / BCC">CC / BCC</button>
+      </div>
+      <div id="ccBccRow">
+        <input id="composeCc"  class="input" placeholder="CC"  type="text" autocomplete="off" spellcheck="false">
+        <input id="composeBcc" class="input" placeholder="BCC" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <input id="composeSubject" class="input" placeholder="Subject" type="text" autocomplete="off">
+      <textarea id="composeBody" class="input" placeholder="Write your message…" rows="8"></textarea>
+      <div class="wm-compose-footer">
+        <span class="wm-draft-status" id="draftStatus"></span>
+        <button class="btn btn-ghost btn-sm" onclick="wm.closeCompose()">Cancel</button>
+        <button class="btn btn-secondary btn-sm" id="saveDraftBtn" onclick="wm.saveDraft(true)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Save Draft
+        </button>
+        <button class="btn btn-primary btn-sm" id="sendBtn" onclick="wm.send()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Keyboard shortcut help overlay ─────────────────────────────────────── -->
+<div id="kbdHelp" onclick="if(event.target===this)wm.hideShortcuts()">
+  <div class="kbd-help-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <h3>Keyboard shortcuts</h3>
+    <div class="kbd-row"><span>Compose new message</span><kbd>c</kbd></div>
+    <div class="kbd-row"><span>Reply to message</span><kbd>r</kbd></div>
+    <div class="kbd-row"><span>Delete message</span><kbd>#</kbd></div>
+    <div class="kbd-row"><span>Toggle read / unread</span><kbd>u</kbd></div>
+    <div class="kbd-row"><span>Close / cancel</span><kbd>Esc</kbd></div>
+    <div class="kbd-row"><span>Show this help</span><kbd>?</kbd></div>
+    <div style="margin-top:var(--space-4);text-align:right">
+      <button class="btn btn-ghost btn-sm" onclick="wm.hideShortcuts()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SVG folder icon sprites ────────────────────────────────────────────── -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="icon-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+  </symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </symbol>
+  <symbol id="icon-draft" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14H6L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4h6v2"/>
+  </symbol>
+  <symbol id="icon-spam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </symbol>
+  <symbol id="icon-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <polyline points="21 8 21 21 3 21 3 8"/>
+    <rect x="1" y="3" width="22" height="5"/>
+    <line x1="10" y1="12" x2="14" y2="12"/>
+  </symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+  </symbol>
+</svg>
+
+<script>
+// ── Folder icon map ─────────────────────────────────────────────────────────
+const FOLDER_ICON_MAP = {
+  INBOX:   'inbox',
+  Sent:    'send',
+  Drafts:  'draft',
+  Trash:   'trash',
+  Spam:    'spam',
+  Junk:    'spam',
+  Archive: 'archive',
+};
+
+function folderIcon(name) {
+  const id = FOLDER_ICON_MAP[name] || 'folder';
+  return `<svg class="folder-icon-svg" aria-hidden="true"><use href="#icon-${id}"/></svg>`;
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function wmToast(type, message, duration = 3500) {
+  const stack = document.getElementById('wmToastStack');
+  const el = document.createElement('div');
+  el.className = `wm-toast ${type}`;
+  el.innerHTML = `<div class="wm-toast-dot"></div><span>${escHtml(message)}</span>`;
+  stack.appendChild(el);
+  const remove = () => {
+    el.classList.add('exiting');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  };
+  const timer = setTimeout(remove, duration);
+  el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+// ── Main app ────────────────────────────────────────────────────────────────
+const wm = (() => {
+  let currentMailbox  = 'INBOX';
+  let currentPage     = 1;
+  let totalMessages   = 0;
+  let perPage         = 25;
+  let currentUid      = null;
+  let replyData       = null;
+  let currentMsgSeen  = true;
+  // Draft state
+  let draftUid        = null;
+  let draftDirty      = false;
+  let draftTimer      = null;
+  let draftInterval   = null;
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+  async function init() {
+    const res  = await fetch('/webmail/api/me');
+    const data = await res.json();
+    if (data.success) showApp(data.email);
+    // else stay on login screen
+  }
+
+  async function login(e) {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    document.getElementById('loginError').style.display = 'none';
+
+    const res  = await fetch('/webmail/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:    document.getElementById('wmEmail').value,
+        password: document.getElementById('wmPassword').value,
+      }),
+    });
+    const data = await res.json();
+    btn.classList.remove('loading'); btn.disabled = false;
+    if (data.success) {
+      showApp(data.email);
+    } else {
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = data.error || 'Sign-in failed';
+      errEl.style.display = 'block';
+    }
+  }
+
+  function showApp(email) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    const lbl = document.getElementById('wmAccountLabel');
+    if (lbl) lbl.textContent = email;
+    loadFolders();
+    loadMessages();
+  }
+
+  async function logout() {
+    await fetch('/webmail/api/logout', { method: 'POST' });
+    location.reload();
+  }
+
+  // ── Mobile sidebar ────────────────────────────────────────────────────────
+  function openSidebar()  { document.body.classList.add('sidebar-open'); }
+  function closeSidebar() { document.body.classList.remove('sidebar-open'); }
+
+  // ── Mobile reader ─────────────────────────────────────────────────────────
+  function closeReader() {
+    currentUid = null;
+    document.getElementById('app').classList.remove('reader-open');
+    document.getElementById('emptyReader').style.display  = '';
+    document.getElementById('readerContent').style.display = 'none';
+    // deselect in list
+    document.querySelectorAll('.msg-item').forEach(el => el.classList.remove('active'));
+  }
+
+  // ── Folders ───────────────────────────────────────────────────────────────
+  async function loadFolders() {
+    const res  = await fetch('/webmail/api/mailboxes');
+    const data = await res.json();
+    const list = document.getElementById('folderList');
+    if (!data.success) {
+      list.innerHTML = '<div style="padding:.5rem 1rem;font-size:.8rem;color:var(--accent-red)">Failed to load folders</div>';
+      return;
+    }
+    const PREFERRED = ['INBOX','Drafts','Sent','Trash','Spam','Junk','Archive'];
+    const sorted = [...data.data].sort((a, b) => {
+      const ai = PREFERRED.indexOf(a.name); const bi = PREFERRED.indexOf(b.name);
+      if (ai > -1 && bi > -1) return ai - bi;
+      if (ai > -1) return -1; if (bi > -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    list.innerHTML = sorted.map(m => `
+      <div class="folder-item${m.path === currentMailbox ? ' active' : ''}"
+           role="listitem"
+           onclick="wm.switchFolder('${escAttr(m.path)}', this)"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();wm.switchFolder('${escAttr(m.path)}',this);}"
+           tabindex="0"
+           aria-label="${escAttr(m.name)} folder">
+        ${folderIcon(m.name)}
+        <span class="folder-name">${escHtml(m.name)}</span>
+      </div>`).join('');
+  }
+
+  function switchFolder(path, el) {
+    currentMailbox = path;
+    currentPage    = 1;
+    currentUid     = null;
+    document.querySelectorAll('.folder-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('currentMailboxLabel').textContent = path;
+    hideReader();
+    loadMessages();
+    closeSidebar();
+  }
+
+  // ── Messages ──────────────────────────────────────────────────────────────
+  async function loadMessages() {
+    const list = document.getElementById('msgList');
+    list.innerHTML = '<div class="msg-loading">Loading</div>';
+    const res  = await fetch(`/webmail/api/messages?mailbox=${encodeURIComponent(currentMailbox)}&page=${currentPage}`);
+    const data = await res.json();
+    if (!data.success) {
+      list.innerHTML = `<div class="msg-empty" style="color:var(--accent-red)">${escHtml(data.error)}</div>`;
+      return;
+    }
+    const { messages, total } = data.data;
+    totalMessages = total;
+    const pages = Math.ceil(total / perPage) || 1;
+    document.getElementById('pageLabel').textContent = total > 0 ? `${currentPage}/${pages}` : '';
+    document.getElementById('prevPage').disabled = currentPage <= 1;
+    document.getElementById('nextPage').disabled = currentPage >= pages;
+
+    if (!messages.length) {
+      list.innerHTML = `
+        <div class="msg-empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          No messages here
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = messages.map(m => `
+      <div class="msg-item${m.seen ? '' : ' unread'}${m.uid === currentUid ? ' active' : ''}"
+           role="listitem"
+           onclick="wm.openMsg(${m.uid})"
+           tabindex="0"
+           onkeydown="if(event.key==='Enter'){wm.openMsg(${m.uid});}"
+           aria-label="${escAttr(m.from)}: ${escAttr(m.subject)}">
+        <div class="msg-row1">
+          ${!m.seen ? '<div class="unread-dot" aria-label="Unread"></div>' : '<div class="read-spacer"></div>'}
+          <span class="msg-from">${escHtml(m.from)}</span>
+          <span class="msg-date">${fmtDate(m.date)}</span>
+        </div>
+        <div class="msg-subj">${escHtml(m.subject)}</div>
+      </div>`).join('');
+  }
+
+  function prevPage() { if (currentPage > 1) { currentPage--; loadMessages(); } }
+  function nextPage() { if (currentPage < Math.ceil(totalMessages / perPage)) { currentPage++; loadMessages(); } }
+
+  async function openMsg(uid) {
+    currentUid = uid;
+    document.getElementById('app').classList.add('reader-open');
+    document.querySelectorAll('.msg-item').forEach(el => {
+      const onclick = el.getAttribute('onclick') || '';
+      const match   = onclick.match(/openMsg\((\d+)\)/);
+      el.classList.toggle('active', match && parseInt(match[1]) === uid);
+    });
+    showReaderLoading();
+
+    const res  = await fetch(`/webmail/api/messages/${uid}?mailbox=${encodeURIComponent(currentMailbox)}`);
+    const data = await res.json();
+    if (!data.success) {
+      wmToast('error', data.error || 'Failed to load message');
+      hideReader();
+      return;
+    }
+    const msg  = data.data;
+    replyData      = msg;
+    currentMsgSeen = true; // we just marked it read on the server
+    updateMarkReadBtn();
+
+    document.getElementById('readerSubject').textContent = msg.subject || '(no subject)';
+    document.getElementById('readerMeta').textContent =
+      `From: ${msg.from}${msg.cc ? '  ·  CC: ' + msg.cc : ''}${msg.to ? '  ·  To: ' + msg.to : ''}  ·  ${fmtDateFull(msg.date)}`;
+
+    // Spam indicator
+    const spamEl = document.getElementById('readerSpam');
+    if (spamEl) {
+      if (msg.spamScore !== null && msg.spamScore !== undefined) {
+        const cls = msg.spamFlag ? 'spam' : 'clean';
+        const lbl = msg.spamFlag ? '⚠ Spam' : '✓ Clean';
+        spamEl.innerHTML = `<span class="spam-badge ${cls}">${lbl} · Score: ${Number(msg.spamScore).toFixed(1)}</span>`;
+        spamEl.style.display = '';
+      } else {
+        spamEl.style.display = 'none';
+      }
+    }
+
+    const bodyEl = document.getElementById('readerText');
+    if (msg.html) {
+      bodyEl.innerHTML = `<iframe
+        sandbox="allow-same-origin"
+        srcdoc="${escAttr(msg.html)}"
+        onload="this.style.height=(this.contentDocument.body.scrollHeight+40)+'px'"
+        style="width:100%;border:none;border-radius:var(--radius-md);background:#fff;min-height:200px">
+      </iframe>`;
+    } else {
+      bodyEl.textContent = msg.text || '(empty message)';
+    }
+    showReader();
+    loadMessages(); // refresh to update unread dots
+  }
+
+  async function deleteMsg() {
+    if (!currentUid) return;
+    const btn = document.getElementById('deleteBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    const res  = await fetch(`/webmail/api/messages/${currentUid}?mailbox=${encodeURIComponent(currentMailbox)}`, { method: 'DELETE' });
+    const data = await res.json();
+    btn.classList.remove('loading'); btn.disabled = false;
+    if (data.success) {
+      currentUid = null;
+      hideReader();
+      document.getElementById('app').classList.remove('reader-open');
+      loadMessages();
+      wmToast('success', 'Message deleted');
+    } else {
+      wmToast('error', data.error || 'Delete failed');
+    }
+  }
+
+  // ── Compose / Reply ───────────────────────────────────────────────────────
+  function openCompose(opts = {}) {
+    // Reset draft state
+    draftUid   = opts.draftUid || null;
+    draftDirty = false;
+
+    // Populate fields
+    document.getElementById('composeTo').value      = opts.to      || '';
+    document.getElementById('composeSubject').value = opts.subject || '';
+    document.getElementById('composeBody').value    = opts.body    || '';
+    document.getElementById('composeCc').value      = opts.cc      || '';
+    document.getElementById('composeBcc').value     = opts.bcc     || '';
+
+    // Show/hide CC/BCC row
+    const ccRow = document.getElementById('ccBccRow');
+    if (opts.cc || opts.bcc) ccRow.classList.add('open');
+    else                     ccRow.classList.remove('open');
+
+    setDraftStatus('');
+    document.getElementById('composeModal').classList.add('open');
+    startAutoSave();
+
+    setTimeout(() => {
+      const focus = opts.to
+        ? document.getElementById('composeSubject')
+        : document.getElementById('composeTo');
+      focus.focus();
+    }, 100);
+  }
+
+  function closeCompose() {
+    stopAutoSave();
+    draftDirty = false;
+    document.getElementById('composeModal').classList.remove('open');
+  }
+
+  function composeBackdrop(e) {
+    if (e.target === document.getElementById('composeModal')) closeCompose();
+  }
+
+  function toggleCcBcc() {
+    const row = document.getElementById('ccBccRow');
+    row.classList.toggle('open');
+    if (row.classList.contains('open')) document.getElementById('composeCc').focus();
+  }
+
+  function reply() {
+    if (!replyData) return;
+    openCompose({
+      to:      replyData.from,
+      subject: replyData.subject?.startsWith('Re:') ? replyData.subject : 'Re: ' + (replyData.subject || ''),
+      body:    `\n\n--- Original message ---\nFrom: ${replyData.from}\n${replyData.text || ''}`,
+    });
+  }
+
+  async function send() {
+    const to      = document.getElementById('composeTo').value.trim();
+    const subject = document.getElementById('composeSubject').value.trim();
+    const text    = document.getElementById('composeBody').value;
+    const cc      = document.getElementById('composeCc').value.trim()  || undefined;
+    const bcc     = document.getElementById('composeBcc').value.trim() || undefined;
+    if (!to || !subject) { wmToast('error', 'To and Subject are required'); return; }
+
+    const btn = document.getElementById('sendBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    stopAutoSave();
+
+    const res  = await fetch('/webmail/api/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to, subject, text, cc, bcc, draftUid }),
+    });
+    const data = await res.json();
+    btn.classList.remove('loading'); btn.disabled = false;
+
+    if (data.success) {
+      draftUid   = null;
+      draftDirty = false;
+      closeCompose();
+      wmToast('success', 'Message sent');
+      // Refresh list if we're viewing Sent folder
+      if (currentMailbox.toLowerCase().includes('sent')) loadMessages();
+    } else {
+      startAutoSave();
+      wmToast('error', data.error || 'Send failed');
+    }
+  }
+
+  // ── Draft save ────────────────────────────────────────────────────────────
+  function markDirty() {
+    draftDirty = true;
+    setDraftStatus('editing');
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => { if (draftDirty) doSaveDraft(false); }, 4000);
+  }
+
+  function startAutoSave() {
+    stopAutoSave();
+    // Wire up input listeners
+    ['composeTo', 'composeSubject', 'composeBody', 'composeCc', 'composeBcc'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.removeEventListener('input', markDirty); el.addEventListener('input', markDirty); }
+    });
+    draftInterval = setInterval(() => { if (draftDirty) doSaveDraft(false); }, 60000);
+  }
+
+  function stopAutoSave() {
+    clearInterval(draftInterval);
+    clearTimeout(draftTimer);
+    draftInterval = null;
+    draftTimer    = null;
+  }
+
+  async function saveDraft(showToast = true) {
+    await doSaveDraft(showToast);
+  }
+
+  async function doSaveDraft(showToast) {
+    const to      = document.getElementById('composeTo').value.trim();
+    const subject = document.getElementById('composeSubject').value.trim();
+    const text    = document.getElementById('composeBody').value;
+    const cc      = document.getElementById('composeCc').value.trim()  || undefined;
+    const bcc     = document.getElementById('composeBcc').value.trim() || undefined;
+
+    if (!to && !subject && !text) {
+      if (showToast) wmToast('info', 'Nothing to save');
+      return;
+    }
+
+    setDraftStatus('saving');
+    const btn = document.getElementById('saveDraftBtn');
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+
+    try {
+      const res  = await fetch('/webmail/api/draft', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ to, subject, text, cc, bcc, oldUid: draftUid }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        draftUid   = data.uid;
+        draftDirty = false;
+        setDraftStatus('saved');
+        if (showToast) wmToast('success', 'Draft saved');
+      } else {
+        setDraftStatus('failed');
+        if (showToast) wmToast('error', data.error || 'Draft save failed');
+      }
+    } catch {
+      setDraftStatus('failed');
+      if (showToast) wmToast('error', 'Draft save failed');
+    } finally {
+      if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+    }
+  }
+
+  function setDraftStatus(state) {
+    const el = document.getElementById('draftStatus');
+    if (!el) return;
+    const labels = { saved: 'Draft saved', saving: 'Saving…', editing: 'Unsaved changes', failed: 'Save failed' };
+    el.textContent = labels[state] || '';
+    el.className   = 'wm-draft-status' + (state ? ' ' + state : '');
+  }
+
+  // ── Mark read / unread ────────────────────────────────────────────────────
+  async function toggleRead() {
+    if (!currentUid) return;
+    const makeSeen = !currentMsgSeen;
+    try {
+      const res  = await fetch(
+        `/webmail/api/messages/${currentUid}/flags?mailbox=${encodeURIComponent(currentMailbox)}`,
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flag: '\\Seen', add: makeSeen }) }
+      );
+      const data = await res.json();
+      if (data.success) {
+        currentMsgSeen = makeSeen;
+        updateMarkReadBtn();
+        wmToast('success', makeSeen ? 'Marked as read' : 'Marked as unread');
+        loadMessages();
+      } else {
+        wmToast('error', data.error || 'Failed');
+      }
+    } catch { wmToast('error', 'Failed'); }
+  }
+
+  function updateMarkReadBtn() {
+    const btn = document.getElementById('markReadBtn');
+    if (btn) btn.textContent = currentMsgSeen ? 'Mark Unread' : 'Mark Read';
+  }
+
+  // ── Shortcuts help ────────────────────────────────────────────────────────
+  function showShortcuts() { document.getElementById('kbdHelp').classList.add('open'); }
+  function hideShortcuts() { document.getElementById('kbdHelp').classList.remove('open'); }
+
+  // ── Reader state helpers ──────────────────────────────────────────────────
+  function showReaderLoading() {
+    document.getElementById('emptyReader').style.display    = 'none';
+    document.getElementById('readerContent').style.display  = 'flex';
+    document.getElementById('readerText').innerHTML =
+      '<div class="msg-loading" style="margin-top:var(--space-8)">Loading</div>';
+  }
+  function showReader() {
+    document.getElementById('emptyReader').style.display    = 'none';
+    document.getElementById('readerContent').style.display  = 'flex';
+  }
+  function hideReader() {
+    document.getElementById('emptyReader').style.display    = '';
+    document.getElementById('readerContent').style.display  = 'none';
+  }
+
+  return {
+    init, login, logout,
+    openSidebar, closeSidebar, closeReader,
+    switchFolder, loadMessages, prevPage, nextPage,
+    openMsg, deleteMsg,
+    reply, openCompose, closeCompose, composeBackdrop, send,
+    saveDraft, toggleCcBcc, toggleRead,
+    showShortcuts, hideShortcuts,
+  };
+})();
+
+// ── Shared utilities ────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function escAttr(s) { return escHtml(s).replace(/"/g, '&quot;'); }
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d), now = new Date();
+  if (dt.toDateString() === now.toDateString())
+    return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const diff = (now - dt) / 86400000;
+  if (diff < 7)
+    return dt.toLocaleDateString([], { weekday: 'short' });
+  return dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+function fmtDateFull(d) {
+  return d ? new Date(d).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+}
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  // Always handle Escape
+  if (e.key === 'Escape') {
+    if (document.getElementById('kbdHelp').classList.contains('open')) { wm.hideShortcuts(); return; }
+    if (document.getElementById('composeModal').classList.contains('open')) { wm.closeCompose(); return; }
+    if (document.body.classList.contains('sidebar-open')) { wm.closeSidebar(); return; }
+    return;
+  }
+  // Skip when typing in any input/textarea
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+  // Skip if modifier keys held
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  switch (e.key) {
+    case 'c': e.preventDefault(); wm.openCompose();   break;
+    case 'r': e.preventDefault(); wm.reply();         break;
+    case '#': e.preventDefault(); wm.deleteMsg();     break;
+    case 'u': e.preventDefault(); wm.toggleRead();    break;
+    case '?': e.preventDefault(); wm.showShortcuts(); break;
+  }
+});
+
+wm.init();
+</script>
+</body>
+</html>

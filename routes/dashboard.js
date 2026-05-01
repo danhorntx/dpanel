@@ -58,4 +58,35 @@ router.get('/log', (req, res) => {
   }
 });
 
+const ALLOWED_SERVICES = ['apache2', 'postfix', 'dovecot', 'spamassassin', 'spamd', 'dpanel'];
+
+router.post('/reboot', (req, res) => {
+  try {
+    const { logAction } = require('../lib/shell');
+    logAction('server:reboot', 'system', 'scheduled');
+    // Respond before the reboot kicks in
+    res.json({ success: true });
+    setTimeout(() => { execSync('reboot'); }, 1000);
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+router.post('/restart', (req, res) => {
+  const { service } = req.body;
+  if (!service || !ALLOWED_SERVICES.includes(service)) {
+    return res.json({ success: false, error: 'Unknown service.' });
+  }
+  try {
+    execSync(`systemctl restart ${service}`, { encoding: 'utf8', timeout: 15000 });
+    const active = serviceStatus(service);
+    // Log it
+    const { logAction } = require('../lib/shell');
+    logAction('service:restart', service, active ? 'ok' : 'failed');
+    res.json({ success: true, active });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

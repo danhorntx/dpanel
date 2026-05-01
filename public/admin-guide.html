@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════╗
+  ║  DPanel Interactive Admin Guide  ·  admin-guide.html                ║
+  ║  Version 1.0  ·  Single-file, self-contained                        ║
+  ╠══════════════════════════════════════════════════════════════════════╣
+  ║  HOW TO CUSTOMIZE / REBRAND                                          ║
+  ║                                                                      ║
+  ║  1. Panel name:   Search for "DPanel" and replace with your brand    ║
+  ║  2. Colors:       Edit CSS variables in :root and [data-theme=light] ║
+  ║     --bg-base        Main background (#0d1017 dark / #f5f6fa light)  ║
+  ║     --accent         Primary accent  (#4f8ef7 blue)                  ║
+  ║     --accent-green   Success color   (#3ecf8e)                       ║
+  ║  3. Fonts:        Change the Google Fonts @import URL near top       ║
+  ║  4. Logo/Icon:    Replace the SVG inside #sidebar-brand              ║
+  ║  5. Back URL:     Edit PANEL_URL constant in the <script> block      ║
+  ║  6. Sections:     Add/remove <section class="guide-section"> blocks  ║
+  ╚══════════════════════════════════════════════════════════════════════╝
+-->
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DPanel — Admin Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ── CSS Variables ──────────────────────────────────────────────── */
+:root {
+  --bg-base:      #0d1017;
+  --bg-surface:   #131a24;
+  --bg-elevated:  #1a2333;
+  --bg-hover:     #1f2c3d;
+  --border:       rgba(255,255,255,.08);
+  --border-focus: rgba(79,142,247,.5);
+  --text-primary: #e8ecf0;
+  --text-secondary:#8b98a8;
+  --text-muted:   #5a6472;
+  --accent:       #4f8ef7;
+  --accent-dim:   rgba(79,142,247,.15);
+  --accent-green: #3ecf8e;
+  --accent-yellow:#f5c842;
+  --accent-red:   #f5654a;
+  --accent-purple:#a78bfa;
+  --sidebar-w:    260px;
+  --topbar-h:     56px;
+  --radius:       8px;
+  --radius-lg:    12px;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --shadow:       0 4px 20px rgba(0,0,0,.4);
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.25);
+  --transition:   .18s ease;
+}
+[data-theme="light"] {
+  --bg-base:      #f0f2f7;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #f5f7fb;
+  --bg-hover:     #edf0f7;
+  --border:       rgba(0,0,0,.09);
+  --border-focus: rgba(79,142,247,.4);
+  --text-primary: #1a202c;
+  --text-secondary:#4a5568;
+  --text-muted:   #a0aec0;
+  --accent-dim:   rgba(79,142,247,.1);
+  --shadow:       0 4px 20px rgba(0,0,0,.1);
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.07);
+}
+
+/* ── Reset & Base ───────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{
+  font-family:var(--font-body);
+  background:var(--bg-base);
+  color:var(--text-primary);
+  line-height:1.6;
+  overflow-x:hidden;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,pre{font-family:var(--font-mono)}
+img{max-width:100%;display:block}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+#app{display:flex;min-height:100vh;padding-top:var(--topbar-h)}
+
+/* ── Topbar ─────────────────────────────────────────────────────── */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--topbar-h);
+  background:var(--bg-surface);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+  padding:0 20px;
+  z-index:200;
+  backdrop-filter:blur(12px);
+}
+#topbar-brand{
+  display:flex;align-items:center;gap:9px;
+  font-weight:700;font-size:1rem;
+  color:var(--accent);
+  white-space:nowrap;
+}
+#topbar-brand svg{flex-shrink:0}
+#back-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:.8rem;font-weight:500;
+  color:var(--text-secondary);
+  transition:var(--transition);
+  white-space:nowrap;
+}
+#back-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.topbar-spacer{flex:1}
+#search-wrap{
+  position:relative;
+  display:flex;align-items:center;
+}
+#search-input{
+  width:220px;
+  padding:7px 12px 7px 34px;
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--text-primary);
+  font-size:.83rem;
+  transition:var(--transition);
+}
+#search-input:focus{
+  outline:none;
+  border-color:var(--border-focus);
+  box-shadow:0 0 0 3px var(--accent-dim);
+  width:280px;
+}
+#search-input::placeholder{color:var(--text-muted)}
+#search-wrap .s-icon{
+  position:absolute;left:10px;
+  color:var(--text-muted);
+  pointer-events:none;
+}
+#search-shortcut{
+  position:absolute;right:8px;
+  font-size:.7rem;
+  color:var(--text-muted);
+  border:1px solid var(--border);
+  border-radius:3px;
+  padding:1px 4px;
+  background:var(--bg-elevated);
+  pointer-events:none;
+}
+#search-input:focus ~ #search-shortcut{display:none}
+#search-clear{
+  position:absolute;right:8px;
+  color:var(--text-muted);
+  padding:2px;
+  display:none;
+  align-items:center;
+  cursor:pointer;
+}
+#search-clear:hover{color:var(--text-primary)}
+#search-clear.visible{display:flex}
+#theme-btn,#shortcuts-btn{
+  width:34px;height:34px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-secondary);
+  transition:var(--transition);
+  flex-shrink:0;
+}
+#theme-btn:hover,#shortcuts-btn:hover{
+  border-color:var(--accent);color:var(--accent);background:var(--accent-dim);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+#sidebar{
+  position:fixed;top:var(--topbar-h);left:0;bottom:0;
+  width:var(--sidebar-w);
+  background:var(--bg-surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  overflow-x:hidden;
+  z-index:100;
+  transition:transform var(--transition);
+  scrollbar-width:thin;
+  scrollbar-color:var(--border) transparent;
+}
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+.sb-group{margin-bottom:4px}
+.sb-group-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 16px 6px;
+  font-size:.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-muted);
+  cursor:pointer;
+  user-select:none;
+  transition:var(--transition);
+}
+.sb-group-header:hover{color:var(--text-secondary)}
+.sb-group-header .chevron{transition:transform .2s}
+.sb-group.collapsed .chevron{transform:rotate(-90deg)}
+.sb-group-items{overflow:hidden;transition:max-height .25s ease}
+.sb-group.collapsed .sb-group-items{max-height:0!important}
+
+.sb-item{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 16px;
+  font-size:.85rem;
+  color:var(--text-secondary);
+  cursor:pointer;
+  border-radius:0;
+  transition:var(--transition);
+  position:relative;
+  text-decoration:none;
+}
+.sb-item:hover{background:var(--bg-hover);color:var(--text-primary);text-decoration:none}
+.sb-item.active{
+  background:var(--accent-dim);
+  color:var(--accent);
+  font-weight:600;
+}
+.sb-item.active::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--accent);border-radius:0 2px 2px 0;
+}
+.sb-item .sb-check{
+  margin-left:auto;
+  width:16px;height:16px;
+  border-radius:50%;
+  border:1.5px solid var(--border);
+  flex-shrink:0;
+  transition:var(--transition);
+  display:flex;align-items:center;justify-content:center;
+}
+.sb-item.done .sb-check{
+  background:var(--accent-green);
+  border-color:var(--accent-green);
+}
+
+/* ── Main content ────────────────────────────────────────────────── */
+#main{
+  margin-left:var(--sidebar-w);
+  flex:1;
+  padding:32px 40px 80px;
+  max-width:calc(var(--sidebar-w) + 860px);
+}
+
+/* ── Section ─────────────────────────────────────────────────────── */
+.guide-section{
+  margin-bottom:56px;
+  scroll-margin-top:calc(var(--topbar-h) + 20px);
+}
+.section-header{
+  display:flex;align-items:flex-start;gap:14px;
+  margin-bottom:24px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.section-icon{
+  width:42px;height:42px;flex-shrink:0;
+  border-radius:10px;
+  background:var(--accent-dim);
+  color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+}
+.section-title{font-size:1.5rem;font-weight:700;line-height:1.2}
+.section-desc{font-size:.9rem;color:var(--text-secondary);margin-top:4px}
+.mark-read-btn{
+  margin-left:auto;flex-shrink:0;
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:.78rem;font-weight:500;
+  color:var(--text-muted);
+  transition:var(--transition);
+  white-space:nowrap;
+}
+.mark-read-btn:hover{border-color:var(--accent-green);color:var(--accent-green)}
+.mark-read-btn.done{
+  background:rgba(62,207,142,.12);
+  border-color:var(--accent-green);
+  color:var(--accent-green);
+}
+
+/* ── Accordion ───────────────────────────────────────────────────── */
+.accordion{
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  margin-bottom:10px;
+  overflow:hidden;
+  background:var(--bg-surface);
+}
+.accordion-header{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px;
+  cursor:pointer;
+  user-select:none;
+  transition:var(--transition);
+  font-weight:600;font-size:.9rem;
+}
+.accordion-header:hover{background:var(--bg-hover)}
+.accordion-header .acc-icon{
+  color:var(--accent);flex-shrink:0;
+}
+.accordion-header .acc-chevron{
+  margin-left:auto;color:var(--text-muted);
+  transition:transform .2s;flex-shrink:0;
+}
+.accordion.open .acc-chevron{transform:rotate(90deg)}
+.accordion-body{
+  display:none;
+  padding:0 18px 18px;
+  border-top:1px solid var(--border);
+}
+.accordion.open .accordion-body{display:block}
+.accordion-body p{color:var(--text-secondary);font-size:.88rem;margin-bottom:10px;line-height:1.7}
+.accordion-body p:last-child{margin-bottom:0}
+
+/* ── Info / Tip / Warning boxes ─────────────────────────────────── */
+.callout{
+  display:flex;gap:12px;
+  padding:12px 16px;
+  border-radius:var(--radius);
+  margin:14px 0;
+  font-size:.85rem;
+}
+.callout.info{background:rgba(79,142,247,.1);border-left:3px solid var(--accent)}
+.callout.tip{background:rgba(62,207,142,.1);border-left:3px solid var(--accent-green)}
+.callout.warn{background:rgba(245,200,66,.1);border-left:3px solid var(--accent-yellow)}
+.callout.danger{background:rgba(245,101,74,.1);border-left:3px solid var(--accent-red)}
+.callout-icon{flex-shrink:0;margin-top:2px}
+.callout.info .callout-icon{color:var(--accent)}
+.callout.tip .callout-icon{color:var(--accent-green)}
+.callout.warn .callout-icon{color:var(--accent-yellow)}
+.callout.danger .callout-icon{color:var(--accent-red)}
+.callout-body strong{display:block;margin-bottom:2px}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.code-block{
+  position:relative;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin:12px 0;
+  overflow:hidden;
+}
+.code-block pre{
+  padding:14px 50px 14px 16px;
+  overflow-x:auto;
+  font-size:.8rem;
+  line-height:1.65;
+  color:#b0c4de;
+}
+.code-block .copy-btn{
+  position:absolute;top:8px;right:8px;
+  padding:4px 8px;
+  border:1px solid var(--border);
+  border-radius:4px;
+  font-size:.7rem;
+  color:var(--text-muted);
+  background:var(--bg-elevated);
+  transition:var(--transition);
+  display:flex;align-items:center;gap:4px;
+}
+.code-block .copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.code-block .copy-btn.copied{color:var(--accent-green);border-color:var(--accent-green)}
+.code-lang{
+  padding:5px 12px;
+  font-size:.7rem;font-weight:500;
+  color:var(--text-muted);
+  background:var(--bg-elevated);
+  border-bottom:1px solid var(--border);
+  text-transform:uppercase;letter-spacing:.05em;
+}
+
+/* ── Table ───────────────────────────────────────────────────────── */
+.guide-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:14px 0}
+.guide-table th{
+  padding:9px 12px;text-align:left;font-weight:600;
+  background:var(--bg-elevated);color:var(--text-secondary);
+  border-bottom:1px solid var(--border);
+}
+.guide-table td{
+  padding:9px 12px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  color:var(--text-secondary);
+}
+.guide-table tr:hover td{background:var(--bg-hover);color:var(--text-primary)}
+
+/* ── Badges ──────────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-blue{background:rgba(79,142,247,.15);color:var(--accent)}
+.badge-green{background:rgba(62,207,142,.15);color:var(--accent-green)}
+.badge-yellow{background:rgba(245,200,66,.15);color:var(--accent-yellow)}
+.badge-red{background:rgba(245,101,74,.15);color:var(--accent-red)}
+.badge-purple{background:rgba(167,139,250,.15);color:var(--accent-purple)}
+
+/* ── Steps ───────────────────────────────────────────────────────── */
+.steps{counter-reset:step;list-style:none;margin:12px 0}
+.steps li{
+  display:flex;gap:14px;
+  margin-bottom:14px;
+  counter-increment:step;
+  align-items:flex-start;
+}
+.steps li::before{
+  content:counter(step);
+  flex-shrink:0;
+  width:26px;height:26px;
+  border-radius:50%;
+  background:var(--accent-dim);
+  color:var(--accent);
+  font-size:.78rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  margin-top:1px;
+}
+.steps li .step-body{flex:1;font-size:.87rem;color:var(--text-secondary);line-height:1.7}
+.steps li .step-body strong{color:var(--text-primary)}
+
+/* ── Kbd ─────────────────────────────────────────────────────────── */
+kbd{
+  display:inline-block;
+  padding:2px 6px;
+  border:1px solid var(--border);
+  border-bottom-width:2px;
+  border-radius:4px;
+  font-size:.75rem;
+  background:var(--bg-elevated);
+  color:var(--text-secondary);
+  line-height:1.5;
+}
+
+/* ── Interactive demos ───────────────────────────────────────────── */
+.demo-box{
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:20px;
+  margin:16px 0;
+}
+.demo-box h4{font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em}
+.demo-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.demo-row label{font-size:.85rem;color:var(--text-secondary);white-space:nowrap}
+.demo-input{
+  flex:1;min-width:140px;
+  padding:8px 12px;
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--text-primary);
+  font-size:.85rem;
+  font-family:var(--font-mono);
+}
+.demo-input:focus{outline:none;border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-dim)}
+.demo-select{
+  padding:8px 12px;
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--text-primary);
+  font-size:.85rem;
+}
+.demo-select:focus{outline:none;border-color:var(--border-focus)}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;
+  border-radius:6px;
+  font-size:.85rem;font-weight:600;
+  transition:var(--transition);
+  cursor:pointer;
+}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#3a7de8;box-shadow:0 2px 8px rgba(79,142,247,.35)}
+.btn-secondary{background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent)}
+.btn-success{background:var(--accent-green);color:#fff}
+.btn-success:hover{background:#2db87a;box-shadow:0 2px 8px rgba(62,207,142,.35)}
+.btn-danger{background:var(--accent-red);color:#fff}
+.btn-danger:hover{background:#d94e37}
+.demo-output{
+  margin-top:12px;
+  padding:12px;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  font-family:var(--font-mono);
+  font-size:.8rem;
+  color:#b0c4de;
+  white-space:pre-wrap;
+  word-break:break-all;
+  min-height:42px;
+  display:flex;align-items:center;gap:10px;
+}
+.demo-output.success{border-color:rgba(62,207,142,.4);color:var(--accent-green)}
+.demo-output.error{border-color:rgba(245,101,74,.4);color:var(--accent-red)}
+
+/* ── SSL Steps (visual wizard) ───────────────────────────────────── */
+.ssl-wizard{margin:16px 0}
+.ssl-steps{display:flex;gap:0;margin-bottom:16px;overflow-x:auto}
+.ssl-step{
+  flex:1;min-width:80px;
+  display:flex;flex-direction:column;align-items:center;
+  position:relative;padding:0 4px;
+}
+.ssl-step:not(:last-child)::after{
+  content:'';position:absolute;top:16px;left:50%;width:100%;height:2px;
+  background:var(--border);z-index:0;
+}
+.ssl-step.done:not(:last-child)::after{background:var(--accent-green)}
+.ssl-step-dot{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--bg-elevated);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;font-weight:700;
+  z-index:1;position:relative;
+  transition:var(--transition);
+  margin-bottom:6px;
+}
+.ssl-step.active .ssl-step-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.ssl-step.done .ssl-step-dot{background:var(--accent-green);border-color:var(--accent-green);color:#fff}
+.ssl-step-label{font-size:.68rem;text-align:center;color:var(--text-muted);line-height:1.3}
+.ssl-step.active .ssl-step-label{color:var(--accent);font-weight:600}
+.ssl-step.done .ssl-step-label{color:var(--accent-green)}
+.ssl-progress-bar{
+  height:4px;background:var(--bg-elevated);border-radius:2px;overflow:hidden;margin-bottom:14px;
+}
+.ssl-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-green));
+  border-radius:2px;transition:width .5s ease;
+}
+
+/* ── Cron Builder ────────────────────────────────────────────────── */
+.cron-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.cron-field label{font-size:.7rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.cron-field input{
+  width:100%;padding:7px 8px;
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:5px;
+  color:var(--text-primary);
+  font-family:var(--font-mono);font-size:.88rem;text-align:center;
+}
+.cron-field input:focus{outline:none;border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-dim)}
+.cron-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cron-preset{
+  padding:4px 10px;
+  border:1px solid var(--border);
+  border-radius:4px;
+  font-size:.75rem;font-weight:500;
+  color:var(--text-muted);
+  cursor:pointer;transition:var(--transition);
+  background:var(--bg-surface);
+}
+.cron-preset:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.cron-human{
+  padding:10px 14px;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:.85rem;
+  color:var(--text-secondary);
+  margin-bottom:10px;
+  min-height:38px;
+  display:flex;align-items:center;gap:8px;
+}
+.cron-human strong{color:var(--text-primary)}
+.cron-expression{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-family:var(--font-mono);font-size:.88rem;color:#b0c4de;
+}
+
+/* ── DNS Records ─────────────────────────────────────────────────── */
+.dns-record{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:12px;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin-bottom:8px;
+}
+.dns-type{
+  flex-shrink:0;padding:2px 8px;
+  border-radius:4px;font-size:.72rem;font-weight:700;
+  font-family:var(--font-mono);
+  background:var(--accent-dim);color:var(--accent);
+  margin-top:2px;
+}
+.dns-type.mx{background:rgba(167,139,250,.15);color:var(--accent-purple)}
+.dns-type.txt{background:rgba(62,207,142,.15);color:var(--accent-green)}
+.dns-type.a{background:rgba(245,200,66,.15);color:var(--accent-yellow)}
+.dns-name{font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:2px}
+.dns-val{font-family:var(--font-mono);font-size:.78rem;color:#b0c4de;word-break:break-all;flex:1}
+.dns-copy{flex-shrink:0;padding:3px 7px;border:1px solid var(--border);border-radius:4px;font-size:.7rem;color:var(--text-muted);transition:var(--transition);cursor:pointer}
+.dns-copy:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── No-results ──────────────────────────────────────────────────── */
+#no-results{
+  display:none;
+  text-align:center;
+  padding:60px 20px;
+  color:var(--text-muted);
+}
+#no-results .nr-icon{font-size:2.5rem;margin-bottom:12px;opacity:.4}
+#no-results h3{font-size:1rem;margin-bottom:4px;color:var(--text-secondary)}
+
+/* ── Shortcuts overlay ───────────────────────────────────────────── */
+#shortcuts-overlay{
+  position:fixed;inset:0;z-index:500;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(6px);
+}
+#shortcuts-overlay.open{display:flex}
+#shortcuts-modal{
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:28px 32px;
+  width:100%;max-width:480px;
+  box-shadow:var(--shadow);
+}
+#shortcuts-modal h2{font-size:1.1rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.shortcut-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.shortcut-row:last-child{border-bottom:none}
+.shortcut-desc{font-size:.85rem;color:var(--text-secondary)}
+.shortcut-keys{display:flex;gap:4px}
+
+/* ── Highlight (search) ──────────────────────────────────────────── */
+mark{background:rgba(245,200,66,.3);color:inherit;border-radius:2px;padding:0 2px}
+
+/* ── Sidebar toggle (mobile) ─────────────────────────────────────── */
+#sidebar-toggle{
+  display:none;
+  width:34px;height:34px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  align-items:center;justify-content:center;
+  color:var(--text-secondary);
+  flex-shrink:0;
+}
+#sidebar-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.6);z-index:90;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media(max-width:900px){
+  #main{margin-left:0;padding:24px 20px 60px}
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.open{transform:translateX(0)}
+  #sidebar-toggle{display:flex}
+  #sidebar-overlay.open{display:block}
+  #search-input{width:160px}
+  #search-input:focus{width:200px}
+}
+@media(max-width:520px){
+  #topbar-brand span{display:none}
+  #search-shortcut{display:none}
+  .cron-grid{grid-template-columns:repeat(3,1fr)}
+  .ssl-steps{flex-wrap:wrap;gap:8px}
+  .ssl-step::after{display:none}
+}
+
+/* ── Progress bar (top) ──────────────────────────────────────────── */
+#reading-progress{
+  position:fixed;top:var(--topbar-h);left:0;right:0;
+  height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-green));
+  transform-origin:left;
+  transform:scaleX(0);
+  z-index:150;
+  transition:transform .1s;
+}
+
+/* ── Utility ─────────────────────────────────────────────────────── */
+.mt-4{margin-top:4px}.mt-8{margin-top:8px}.mt-12{margin-top:12px}.mt-16{margin-top:16px}
+.mb-0{margin-bottom:0!important}
+.text-sm{font-size:.85rem}.text-xs{font-size:.78rem}
+.text-muted{color:var(--text-muted)}
+.text-secondary{color:var(--text-secondary)}
+.flex{display:flex}.items-center{align-items:center}.gap-8{gap:8px}
+.hidden{display:none!important}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="reading-progress"></div>
+
+<!-- ══ Topbar ══════════════════════════════════════════════════════ -->
+<header id="topbar">
+  <button id="sidebar-toggle" aria-label="Toggle sidebar">
+    <i data-lucide="menu" width="18" height="18"></i>
+  </button>
+  <div id="topbar-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="6" fill="#4f8ef7"/>
+      <path d="M6 7h5c2.8 0 5 2.2 5 5s-2.2 5-5 5H6V7z" fill="white"/>
+      <circle cx="17" cy="12" r="2" fill="white" opacity=".6"/>
+    </svg>
+    <span>DPanel Guide</span>
+  </div>
+  <button id="back-btn" onclick="goBack()">
+    <i data-lucide="arrow-left" width="14" height="14"></i>Back to Panel
+  </button>
+  <div class="topbar-spacer"></div>
+  <div id="search-wrap">
+    <i data-lucide="search" width="15" height="15" class="s-icon"></i>
+    <input type="text" id="search-input" placeholder="Search guide…" aria-label="Search guide"/>
+    <span id="search-shortcut">/</span>
+    <button id="search-clear" aria-label="Clear search">
+      <i data-lucide="x" width="13" height="13"></i>
+    </button>
+  </div>
+  <button id="shortcuts-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+    <i data-lucide="keyboard" width="16" height="16"></i>
+  </button>
+  <button id="theme-btn" aria-label="Toggle dark/light mode" title="Toggle theme">
+    <i data-lucide="sun" width="16" height="16" id="theme-icon-light"></i>
+    <i data-lucide="moon" width="16" height="16" id="theme-icon-dark" style="display:none"></i>
+  </button>
+</header>
+
+<!-- ══ Sidebar ═════════════════════════════════════════════════════ -->
+<nav id="sidebar" aria-label="Guide navigation">
+  <!-- Sidebar groups injected by JS -->
+</nav>
+<div id="sidebar-overlay"></div>
+
+<!-- ══ Main ════════════════════════════════════════════════════════ -->
+<div id="app">
+  <main id="main">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §1  GETTING STARTED
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-start" data-section="Getting Started">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="rocket" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Getting Started</div>
+          <div class="section-desc">Installation, first login, and overview of DPanel</div>
+        </div>
+        <button class="mark-read-btn" data-section="start">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-what">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="info" width="16" height="16" class="acc-icon"></i>
+          What is DPanel?
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel is a self-hosted server control panel that runs directly on your VPS. It provides a unified web interface for managing web hosting, databases, email, file uploads, system monitoring, and more — all without paying for cPanel or Plesk.</p>
+          <p>It is built with <strong>Node.js</strong> and <strong>Express</strong>, stores sessions and user data in <strong>MariaDB</strong>, and manages server resources through system shell commands. The UI is a single-page application accessible at <code>https://panel.yourdomain.com</code>.</p>
+          <div class="callout tip">
+            <i data-lucide="lightbulb" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>Open source</strong> — DPanel is fully self-contained. All source lives in <code>/opt/dpanel</code> on your server.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-install">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="terminal" width="16" height="16" class="acc-icon"></i>
+          Installation & First Boot
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel is typically deployed at <code>/opt/dpanel</code>. After cloning the repo and installing dependencies, start it with PM2:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre>cd /opt/dpanel
+npm install
+pm2 start server.js --name dpanel
+pm2 save
+pm2 startup</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+          <p>On first boot, DPanel runs an idempotent schema migration that creates the <code>dpanel_users</code>, <code>dpanel_user_domains</code>, and <code>dpanel_audit_log</code> tables in MariaDB. If a legacy <code>config.json</code> exists, the admin account is automatically migrated.</p>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>MariaDB required</strong> — DPanel uses a dedicated <code>dpanel</code> database. Ensure the <code>dpanel</code> user has full privileges on this database before starting.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-login">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="log-in" width="16" height="16" class="acc-icon"></i>
+          Logging In
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ol class="steps">
+            <li><div class="step-body">Navigate to <strong>https://panel.yourdomain.com</strong> in your browser.</div></li>
+            <li><div class="step-body">Enter your <strong>admin username</strong> and <strong>password</strong>. The default after migration is set during initial setup.</div></li>
+            <li><div class="step-body">On success you are redirected to the <strong>Dashboard</strong>. Your session is stored in MariaDB and survives server restarts.</div></li>
+            <li><div class="step-body">Admins see the full navigation. Users with scoped domain access see only their permitted sections.</div></li>
+          </ol>
+          <div class="callout info">
+            <i data-lucide="shield" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Login is rate-limited to <strong>5 attempts per 15 minutes</strong> per IP address to prevent brute-force attacks.</div>
+          </div>
+          <p>To reset the admin password via the command line:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre>cd /opt/dpanel
+node -e "
+const b=require('bcryptjs');
+const h=b.hashSync('YourNewPassword',12);
+console.log(h);
+" | xargs -I{} mysql -u dpanel -pdpanel_db_secret_2024 dpanel \
+  -e \"UPDATE dpanel_users SET password_hash='{}' WHERE role='admin' LIMIT 1\"</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-apache">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="server" width="16" height="16" class="acc-icon"></i>
+          Apache Reverse Proxy Setup
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel listens on port <strong>8080</strong> (HTTPS internally). Apache proxies all traffic from <code>panel.yourdomain.com</code>:</p>
+          <div class="code-block">
+            <div class="code-lang">apache</div>
+            <pre>&lt;VirtualHost *:443&gt;
+  ServerName panel.yourdomain.com
+  SSLEngine On
+  SSLCertificateFile    /etc/letsencrypt/live/panel.yourdomain.com/fullchain.pem
+  SSLCertificateKeyFile /etc/letsencrypt/live/panel.yourdomain.com/privkey.pem
+  SSLProxyEngine On
+  SSLProxyVerify none
+  SSLProxyCheckPeerCN off
+  SSLProxyCheckPeerName off
+
+  ProxyPreserveHost On
+  ProxyPass        / https://127.0.0.1:8080/
+  ProxyPassReverse / https://127.0.0.1:8080/
+
+  # WebSocket terminal support
+  RewriteEngine On
+  RewriteCond %{HTTP:Upgrade} websocket [NC]
+  RewriteRule /terminal/ws(.*) wss://127.0.0.1:8080/terminal/ws$1 [P,L]
+&lt;/VirtualHost&gt;</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §2  DASHBOARD
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-dashboard" data-section="Dashboard">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="layout-dashboard" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Dashboard</div>
+          <div class="section-desc">Real-time system metrics and at-a-glance server health</div>
+        </div>
+        <button class="mark-read-btn" data-section="dashboard">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-dash-overview">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="activity" width="16" height="16" class="acc-icon"></i>
+          Dashboard Overview
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The dashboard displays live system information refreshed every <strong>5 seconds</strong>:</p>
+          <table class="guide-table">
+            <thead><tr><th>Widget</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>CPU Usage</td><td>Current utilisation across all cores (%) with a sparkline</td></tr>
+              <tr><td>RAM Usage</td><td>Used / Total memory with a progress bar</td></tr>
+              <tr><td>Disk Usage</td><td>Root filesystem usage with per-mount breakdown</td></tr>
+              <tr><td>Network I/O</td><td>Inbound / outbound traffic on the primary interface (KB/s)</td></tr>
+              <tr><td>Uptime</td><td>Time since last boot, formatted as days / hours / minutes</td></tr>
+              <tr><td>Load Average</td><td>1 / 5 / 15-minute averages</td></tr>
+              <tr><td>Active Domains</td><td>Count of hosted Apache virtual hosts</td></tr>
+              <tr><td>Services</td><td>Status of Apache, MariaDB, Postfix, Dovecot, OpenDKIM</td></tr>
+            </tbody>
+          </table>
+          <div class="callout tip">
+            <i data-lucide="lightbulb" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Click any service badge to view its live <strong>systemctl status</strong> output in a popup.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-dash-nav">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="navigation" width="16" height="16" class="acc-icon"></i>
+          Navigation & Domain Switcher
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The sidebar contains all panel sections. Admins see every section. Non-admin users only see sections relevant to their assigned domains.</p>
+          <p>The <strong>Domain Switcher</strong> dropdown in the topbar lets you change your active domain context. All hosting, database, and file management actions apply to the currently selected domain. Admins can switch to any domain; users only see their assigned domains.</p>
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">The active domain is persisted in your session and remembered across page reloads.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §3  HOSTING
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-hosting" data-section="Hosting">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="globe" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Web Hosting</div>
+          <div class="section-desc">Apache vhosts, SSL certificates, PHP, and domain management</div>
+        </div>
+        <button class="mark-read-btn" data-section="hosting">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-domains">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="plus-circle" width="16" height="16" class="acc-icon"></i>
+          Adding a Domain
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ol class="steps">
+            <li><div class="step-body">Navigate to <strong>Hosting</strong> in the sidebar and click <strong>Add Domain</strong>.</div></li>
+            <li><div class="step-body">Enter the domain name (e.g. <code>example.com</code>). DPanel creates the Apache vhost, web root at <code>/var/www/example.com/public_html</code>, and log files.</div></li>
+            <li><div class="step-body">Point your DNS <strong>A record</strong> to the server IP. Then click <strong>Issue SSL</strong> to obtain a Let's Encrypt certificate.</div></li>
+            <li><div class="step-body">The domain is now live. Visit it in a browser to see the default placeholder page.</div></li>
+          </ol>
+
+          <!-- Interactive Demo: Domain toggle -->
+          <div class="demo-box" id="demo-domain">
+            <h4>Try it — Domain Config Preview</h4>
+            <div class="demo-row">
+              <label>Domain name:</label>
+              <input type="text" class="demo-input" id="dd-domain" value="example.com" placeholder="example.com"/>
+              <select class="demo-select" id="dd-php">
+                <option value="8.1">PHP 8.1</option>
+                <option value="8.2" selected>PHP 8.2</option>
+                <option value="8.3">PHP 8.3</option>
+              </select>
+              <button class="btn btn-primary" onclick="previewDomain()">Preview Config</button>
+            </div>
+            <div class="demo-output" id="dd-output" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-ssl">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="lock" width="16" height="16" class="acc-icon"></i>
+          SSL Certificate Issuance
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel uses <strong>Certbot</strong> with the Apache plugin or webroot method to issue Let's Encrypt certificates. Certificates auto-renew via a daily cron job.</p>
+
+          <!-- SSL Wizard Demo -->
+          <div class="demo-box ssl-wizard">
+            <h4>SSL Issuance Flow</h4>
+            <div class="ssl-steps" id="ssl-steps">
+              <div class="ssl-step active"><div class="ssl-step-dot">1</div><div class="ssl-step-label">DNS Check</div></div>
+              <div class="ssl-step"><div class="ssl-step-dot">2</div><div class="ssl-step-label">HTTP-01 Challenge</div></div>
+              <div class="ssl-step"><div class="ssl-step-dot">3</div><div class="ssl-step-label">Cert Issued</div></div>
+              <div class="ssl-step"><div class="ssl-step-dot">4</div><div class="ssl-step-label">Apache Reload</div></div>
+              <div class="ssl-step"><div class="ssl-step-dot">5</div><div class="ssl-step-label">HTTPS Live</div></div>
+            </div>
+            <div class="ssl-progress-bar"><div class="ssl-progress-fill" id="ssl-fill" style="width:0%"></div></div>
+            <div class="demo-row">
+              <input type="text" class="demo-input" id="ssl-domain" value="example.com" placeholder="Domain…"/>
+              <button class="btn btn-primary" id="ssl-btn" onclick="runSslWizard()">Simulate Issue SSL</button>
+            </div>
+            <div id="ssl-status" class="demo-output" style="display:none"></div>
+          </div>
+
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>DNS must propagate first.</strong> The A record for the domain must resolve to your server IP before issuing a certificate. Use <code>dig A yourdomain.com @8.8.8.8</code> to verify.</div>
+          </div>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre># Check DNS before issuing
+dig A example.com @8.8.8.8 +short
+
+# Manual cert issuance (if panel UI fails)
+certbot certonly --webroot \
+  -w /var/www/example.com/public_html \
+  -d example.com -d www.example.com</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-php">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="code-2" width="16" height="16" class="acc-icon"></i>
+          PHP Configuration
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Each domain can be assigned a different PHP version via PHP-FPM. DPanel writes the <code>ProxyPassMatch</code> directive in the vhost to route PHP requests to the correct FPM socket.</p>
+          <table class="guide-table">
+            <thead><tr><th>Setting</th><th>Location</th><th>Restart needed?</th></tr></thead>
+            <tbody>
+              <tr><td>PHP version per domain</td><td>DPanel Hosting tab</td><td>Yes — Apache reload</td></tr>
+              <tr><td>php.ini values</td><td><code>/etc/php/8.x/fpm/php.ini</code></td><td>Yes — <code>systemctl restart phpX.X-fpm</code></td></tr>
+              <tr><td>FPM pool config</td><td><code>/etc/php/8.x/fpm/pool.d/</code></td><td>Yes — FPM restart</td></tr>
+              <tr><td>upload_max_filesize</td><td>php.ini or <code>.htaccess</code></td><td>No for .htaccess</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-redirects">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="arrow-right-left" width="16" height="16" class="acc-icon"></i>
+          Redirects & .htaccess
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel enables <code>AllowOverride All</code> for every domain, so <code>.htaccess</code> files work out of the box. Common patterns:</p>
+          <div class="code-block">
+            <div class="code-lang">.htaccess</div>
+            <pre># Force HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# WordPress pretty permalinks
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+
+# Remove www
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §4  DATABASES
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-databases" data-section="Databases">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="database" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Databases</div>
+          <div class="section-desc">MariaDB database and user management</div>
+        </div>
+        <button class="mark-read-btn" data-section="databases">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-db-create">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="plus-circle" width="16" height="16" class="acc-icon"></i>
+          Creating a Database
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ol class="steps">
+            <li><div class="step-body">Go to <strong>Databases</strong> in the sidebar.</div></li>
+            <li><div class="step-body">Click <strong>Create Database</strong> and enter a name (letters, numbers, underscores only).</div></li>
+            <li><div class="step-body">Optionally create a dedicated <strong>database user</strong> with a strong password.</div></li>
+            <li><div class="step-body">Grant the user <strong>ALL PRIVILEGES</strong> on the new database. Copy the connection string shown.</div></li>
+          </ol>
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Database names are prefixed with your username automatically to avoid collisions (e.g. <code>dan_myapp</code>).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-db-backup">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="download" width="16" height="16" class="acc-icon"></i>
+          Backup & Restore
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel provides one-click export (mysqldump) and import from SQL files. For automated backups, schedule a cron job:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre># Daily backup to /opt/backups/db/
+0 3 * * * mysqldump -u dpanel -pdpanel_db_secret_2024 mydb \
+  | gzip > /opt/backups/db/mydb-$(date +\%F).sql.gz
+
+# Restore from backup
+gunzip -c /opt/backups/db/mydb-2024-01-15.sql.gz \
+  | mysql -u dpanel -pdpanel_db_secret_2024 mydb</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §5  FILES & APPS
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-files" data-section="Files &amp; Apps">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="folder-open" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Files &amp; Apps</div>
+          <div class="section-desc">File manager, upload, and one-click app installer</div>
+        </div>
+        <button class="mark-read-btn" data-section="files">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-filemanager">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="files" width="16" height="16" class="acc-icon"></i>
+          File Manager
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The built-in file manager lets you browse, upload, download, rename, and delete files within your domain's web root (<code>/var/www/yourdomain.com/public_html</code>).</p>
+          <table class="guide-table">
+            <thead><tr><th>Action</th><th>How</th></tr></thead>
+            <tbody>
+              <tr><td>Upload files</td><td>Drag &amp; drop or click "Upload" — supports multiple files and ZIP extraction</td></tr>
+              <tr><td>Create folder</td><td>Click "New Folder" icon, enter name</td></tr>
+              <tr><td>Edit text file</td><td>Click file → Edit — opens inline code editor</td></tr>
+              <tr><td>Download</td><td>Right-click → Download, or select + "Download as ZIP"</td></tr>
+              <tr><td>Set permissions</td><td>Right-click → Permissions → enter octal (e.g. 755)</td></tr>
+              <tr><td>Delete</td><td>Select files → Delete (confirmation required)</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">File operations run as the web server user. Permissions issues can prevent PHP apps from writing caches or uploads. Set directories to <code>755</code> and writable directories to <code>775</code>.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-apps">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="package" width="16" height="16" class="acc-icon"></i>
+          One-Click App Installer
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel ships with installers for popular web applications. The installer downloads the app, extracts it to the web root, creates a database, and pre-configures settings.</p>
+          <table class="guide-table">
+            <thead><tr><th>App</th><th>Installs</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>WordPress</td><td>Latest stable</td><td>Auto-configures wp-config.php</td></tr>
+              <tr><td>Joomla</td><td>Latest stable</td><td>DB + admin account created</td></tr>
+              <tr><td>Laravel</td><td>Latest via Composer</td><td>Requires PHP 8.1+</td></tr>
+              <tr><td>Static HTML</td><td>Blank template</td><td>index.html placeholder</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §6  TOOLS
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-tools" data-section="Tools">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="wrench" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Tools</div>
+          <div class="section-desc">Terminal, cron jobs, process manager, and DNS lookup</div>
+        </div>
+        <button class="mark-read-btn" data-section="tools">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-terminal">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="terminal" width="16" height="16" class="acc-icon"></i>
+          Web Terminal
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The web terminal provides a full <strong>PTY</strong> shell session over WebSocket, powered by <code>node-pty</code> and <code>xterm.js</code>. It behaves identically to an SSH session.</p>
+          <div class="callout danger">
+            <i data-lucide="alert-octagon" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>Admin only.</strong> The terminal runs as root on the server. Restrict access to trusted admins only. Never share your DPanel credentials.</div>
+          </div>
+          <p><strong>Keyboard shortcuts in the terminal:</strong></p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+            <span><kbd>Ctrl</kbd>+<kbd>C</kbd> — interrupt</span>
+            <span><kbd>Ctrl</kbd>+<kbd>L</kbd> — clear</span>
+            <span><kbd>Tab</kbd> — autocomplete</span>
+            <span><kbd>↑</kbd>/<kbd>↓</kbd> — history</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-cron">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="clock" width="16" height="16" class="acc-icon"></i>
+          Cron Job Manager
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Create, edit, and delete cron jobs through the UI. DPanel writes entries to the system crontab.</p>
+
+          <!-- Cron Builder Demo -->
+          <div class="demo-box">
+            <h4>Cron Expression Builder</h4>
+            <div class="cron-presets">
+              <button class="cron-preset" onclick="setCron('* * * * *')">Every minute</button>
+              <button class="cron-preset" onclick="setCron('0 * * * *')">Every hour</button>
+              <button class="cron-preset" onclick="setCron('0 0 * * *')">Daily midnight</button>
+              <button class="cron-preset" onclick="setCron('0 3 * * *')">Daily 3am</button>
+              <button class="cron-preset" onclick="setCron('0 0 * * 0')">Weekly Sunday</button>
+              <button class="cron-preset" onclick="setCron('0 0 1 * *')">Monthly 1st</button>
+              <button class="cron-preset" onclick="setCron('*/5 * * * *')">Every 5 min</button>
+              <button class="cron-preset" onclick="setCron('0 9-17 * * 1-5')">Business hours</button>
+            </div>
+            <div class="cron-grid">
+              <div class="cron-field"><label>Minute</label><input type="text" id="cron-min" value="0" oninput="updateCron()"/></div>
+              <div class="cron-field"><label>Hour</label><input type="text" id="cron-hr" value="3" oninput="updateCron()"/></div>
+              <div class="cron-field"><label>Day (month)</label><input type="text" id="cron-dom" value="*" oninput="updateCron()"/></div>
+              <div class="cron-field"><label>Month</label><input type="text" id="cron-mon" value="*" oninput="updateCron()"/></div>
+              <div class="cron-field"><label>Day (week)</label><input type="text" id="cron-dow" value="*" oninput="updateCron()"/></div>
+            </div>
+            <div class="cron-human" id="cron-human"><strong>Every day at 3:00 AM</strong></div>
+            <div class="cron-expression" id="cron-expr">
+              <span id="cron-expr-text" style="flex:1">0 3 * * *</span>
+              <button class="copy-btn" style="position:static" onclick="copyCron()"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+            </div>
+          </div>
+
+          <p class="mt-12" style="font-size:.85rem;color:var(--text-secondary)">Common cron commands for DPanel:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre># Daily DB backup at 2am
+0 2 * * * mysqldump -u dpanel -p'pass' mydb | gzip > /opt/backups/mydb-$(date +\%F).sql.gz
+
+# Weekly log rotation at Sunday 1am
+0 1 * * 0 /usr/sbin/logrotate /etc/logrotate.conf
+
+# Certbot auto-renew (usually pre-configured by certbot)
+0 0,12 * * * certbot renew --quiet
+
+# WordPress cron (replace URL)
+*/5 * * * * curl -s https://example.com/wp-cron.php?doing_wp_cron > /dev/null</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-processes">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="cpu" width="16" height="16" class="acc-icon"></i>
+          Process Manager
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The process manager shows running processes sorted by CPU or memory usage, with the ability to send signals (SIGTERM, SIGKILL) to any process. It refreshes every 10 seconds.</p>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Killing system processes (like Apache or MariaDB) will take down hosted sites. Use with caution.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §7  MAIL
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-mail" data-section="Mail">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="mail" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Mail Server</div>
+          <div class="section-desc">Email accounts, forwarders, DKIM signing, and DNS records</div>
+        </div>
+        <button class="mark-read-btn" data-section="mail">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-mail-accounts">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="user" width="16" height="16" class="acc-icon"></i>
+          Email Accounts
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel manages Postfix + Dovecot virtual mailboxes. Each domain can have unlimited email accounts. Mailboxes are stored in <code>/var/mail/vhosts/yourdomain.com/</code>.</p>
+          <ol class="steps">
+            <li><div class="step-body">Go to <strong>Mail</strong> → <strong>Accounts</strong> tab.</div></li>
+            <li><div class="step-body">Click <strong>Add Account</strong>. Enter the local part (e.g. <code>info</code>) and a strong password.</div></li>
+            <li><div class="step-body">The account is immediately active. Test with an IMAP client using these settings:</div></li>
+          </ol>
+          <table class="guide-table mt-8">
+            <thead><tr><th>Setting</th><th>IMAP</th><th>SMTP</th></tr></thead>
+            <tbody>
+              <tr><td>Server</td><td>yourdomain.com</td><td>yourdomain.com</td></tr>
+              <tr><td>Port</td><td>993</td><td>587</td></tr>
+              <tr><td>Security</td><td>SSL/TLS</td><td>STARTTLS</td></tr>
+              <tr><td>Username</td><td>full email address</td><td>full email address</td></tr>
+              <tr><td>Password</td><td>account password</td><td>account password</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-forwards">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="forward" width="16" height="16" class="acc-icon"></i>
+          Forwarders
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Forwarders redirect mail sent to one address to one or more destinations without storing a local copy.</p>
+          <ol class="steps">
+            <li><div class="step-body">Go to the <strong>Forwarders</strong> tab in Mail.</div></li>
+            <li><div class="step-body">Enter the source address (e.g. <code>contact@example.com</code>) and one or more destination addresses.</div></li>
+            <li><div class="step-body">Click Save. DPanel writes the alias to Postfix's virtual alias map and reloads.</div></li>
+          </ol>
+          <div class="callout tip">
+            <i data-lucide="lightbulb" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Use a catch-all forwarder by entering <code>@yourdomain.com</code> as the source to forward all unknown addresses.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-dkim">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="shield-check" width="16" height="16" class="acc-icon"></i>
+          DKIM Signing
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p><strong>DKIM</strong> (DomainKeys Identified Mail) signs outgoing emails with a private key. Receiving servers verify the signature against the public key published in DNS, drastically improving email deliverability.</p>
+          <ol class="steps">
+            <li><div class="step-body">Go to <strong>Mail</strong> → <strong>DKIM &amp; DNS</strong> tab. Find your domain in the list.</div></li>
+            <li><div class="step-body">Click <strong>Generate DKIM Key</strong>. DPanel uses OpenDKIM to create a 2048-bit RSA key pair.</div></li>
+            <li><div class="step-body">Copy the <strong>TXT record value</strong> and add it to your DNS as shown below.</div></li>
+            <li><div class="step-body">After DNS propagation (~24h), click <strong>Verify</strong> to confirm the record is live.</div></li>
+          </ol>
+
+          <!-- DNS Records Viewer -->
+          <div class="demo-box" id="demo-dns">
+            <h4>Required DNS Records for Email</h4>
+            <div class="demo-row">
+              <label>Domain:</label>
+              <input type="text" class="demo-input" id="dns-domain" value="example.com" placeholder="example.com"/>
+              <input type="text" class="demo-input" id="dns-ip" value="<server-1-ip>" placeholder="Server IP"/>
+              <button class="btn btn-primary" onclick="showDnsRecords()">Generate Records</button>
+            </div>
+            <div id="dns-records" style="display:none;margin-top:12px"></div>
+          </div>
+
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">DKIM works alongside <strong>SPF</strong> and <strong>DMARC</strong> to form a complete email authentication chain. All three records are needed for maximum deliverability.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §8  WEBMAIL
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-webmail" data-section="Webmail">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="inbox" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Webmail</div>
+          <div class="section-desc">Browser-based email client built into DPanel</div>
+        </div>
+        <button class="mark-read-btn" data-section="webmail">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-webmail-access">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="external-link" width="16" height="16" class="acc-icon"></i>
+          Accessing Webmail
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Webmail is available at <code>https://yourdomain.com/webmail</code> or via the <strong>Webmail</strong> button in the DPanel topbar. It is a standalone SPA that does not require a separate login if you are already authenticated to DPanel.</p>
+          <ol class="steps">
+            <li><div class="step-body">Click <strong>Webmail</strong> in the DPanel dashboard, or navigate directly to <code>/webmail</code>.</div></li>
+            <li><div class="step-body">Enter your <strong>email address</strong>, <strong>IMAP password</strong>, and optionally your SMTP password if different.</div></li>
+            <li><div class="step-body">Click <strong>Connect</strong>. Credentials are encrypted with AES-256-GCM and stored only in your session for the duration of the browser session.</div></li>
+          </ol>
+          <div class="callout info">
+            <i data-lucide="shield" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Email credentials are <strong>never stored on disk</strong>. They are encrypted in your session using a key derived from your session ID and discarded when you log out or the session expires.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-webmail-compose">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="pencil" width="16" height="16" class="acc-icon"></i>
+          Composing &amp; Replying
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <table class="guide-table">
+            <thead><tr><th>Feature</th><th>Details</th></tr></thead>
+            <tbody>
+              <tr><td>Compose new</td><td>Click the pencil icon in the topbar or press <kbd>C</kbd></td></tr>
+              <tr><td>Reply / Reply All</td><td>Buttons in the message reader; pre-fills To, Subject, quoted body</td></tr>
+              <tr><td>HTML email</td><td>Messages render in a sandboxed iframe; plain-text fallback shown if no HTML</td></tr>
+              <tr><td>Folder navigation</td><td>Inbox, Sent, Drafts, Trash, Spam — listed in left sidebar</td></tr>
+              <tr><td>Pagination</td><td>50 messages per page; arrows to navigate</td></tr>
+              <tr><td>Mark read</td><td>Opening a message marks it read via IMAP STORE flag</td></tr>
+              <tr><td>Delete</td><td>Moves to Trash (IMAP MOVE); permanent delete from Trash</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §9  ACCESS / USERS
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-access" data-section="Access &amp; Users">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="users" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Access &amp; Users</div>
+          <div class="section-desc">Admin and user accounts, roles, domain scoping, audit log</div>
+        </div>
+        <button class="mark-read-btn" data-section="access">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-roles">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="shield" width="16" height="16" class="acc-icon"></i>
+          Roles &amp; Permissions
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <table class="guide-table">
+            <thead><tr><th>Feature</th><th><span class="badge badge-red">Admin</span></th><th><span class="badge badge-blue">User</span></th></tr></thead>
+            <tbody>
+              <tr><td>View dashboard (all domains)</td><td>✅</td><td>❌ (scoped)</td></tr>
+              <tr><td>Add / remove domains</td><td>✅</td><td>❌</td></tr>
+              <tr><td>Manage web hosting</td><td>✅</td><td>✅ (assigned domains)</td></tr>
+              <tr><td>Manage databases</td><td>✅</td><td>✅ (assigned domains)</td></tr>
+              <tr><td>File manager</td><td>✅</td><td>✅ (assigned domains)</td></tr>
+              <tr><td>Web terminal</td><td>✅</td><td>❌</td></tr>
+              <tr><td>Manage mail accounts</td><td>✅</td><td>✅ (assigned domains)</td></tr>
+              <tr><td>Manage users</td><td>✅</td><td>❌</td></tr>
+              <tr><td>View audit log</td><td>✅</td><td>❌</td></tr>
+              <tr><td>System settings</td><td>✅</td><td>❌</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-users-create">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="user-plus" width="16" height="16" class="acc-icon"></i>
+          Creating &amp; Managing Users
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ol class="steps">
+            <li><div class="step-body">Go to <strong>Users</strong> in the sidebar (admin-only).</div></li>
+            <li><div class="step-body">Click <strong>Add User</strong>. Enter username and a strong password.</div></li>
+            <li><div class="step-body">Set the <strong>role</strong>: Admin (full access) or User (scoped access).</div></li>
+            <li><div class="step-body">For User role: select which <strong>domains</strong> they can manage. They only see these domains in all sections.</div></li>
+            <li><div class="step-body">Save. The new user can log in immediately at <code>/login</code>.</div></li>
+          </ol>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">There must always be at least <strong>one admin</strong> account. DPanel prevents demoting the last admin to prevent lockout.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-audit">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="clipboard-list" width="16" height="16" class="acc-icon"></i>
+          Audit Log
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Every admin action is recorded in the <code>dpanel_audit_log</code> table: user ID, username, action type, target (domain or user), detail text, IP address, and timestamp.</p>
+          <div class="code-block">
+            <div class="code-lang">sql</div>
+            <pre>-- View recent audit entries
+SELECT username, action, target, detail, ip, created_at
+FROM dpanel_audit_log
+ORDER BY created_at DESC
+LIMIT 50;
+
+-- Filter by user
+SELECT * FROM dpanel_audit_log
+WHERE username = 'dan'
+ORDER BY created_at DESC;</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §10  SYSTEM
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-system" data-section="System">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="settings" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">System</div>
+          <div class="section-desc">Service management, updates, backups, and server configuration</div>
+        </div>
+        <button class="mark-read-btn" data-section="system">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-services">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="activity" width="16" height="16" class="acc-icon"></i>
+          Service Management
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The System panel shows the status of all critical services and allows start / stop / restart actions:</p>
+          <table class="guide-table">
+            <thead><tr><th>Service</th><th>Function</th><th>CLI command</th></tr></thead>
+            <tbody>
+              <tr><td>Apache2</td><td>Web server &amp; reverse proxy</td><td><code>systemctl restart apache2</code></td></tr>
+              <tr><td>MariaDB</td><td>Database server</td><td><code>systemctl restart mariadb</code></td></tr>
+              <tr><td>Postfix</td><td>SMTP mail transfer agent</td><td><code>systemctl restart postfix</code></td></tr>
+              <tr><td>Dovecot</td><td>IMAP/POP3 mail server</td><td><code>systemctl restart dovecot</code></td></tr>
+              <tr><td>OpenDKIM</td><td>DKIM signing milter</td><td><code>systemctl restart opendkim</code></td></tr>
+              <tr><td>PM2 (dpanel)</td><td>DPanel process manager</td><td><code>pm2 restart dpanel</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-updates">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="refresh-cw" width="16" height="16" class="acc-icon"></i>
+          Updating DPanel
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ol class="steps">
+            <li><div class="step-body">Pull the latest code from GitHub.</div></li>
+            <li><div class="step-body">Install any new dependencies.</div></li>
+            <li><div class="step-body">Restart the DPanel process. Schema migrations run automatically on boot.</div></li>
+          </ol>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre>cd /opt/dpanel
+git pull origin main
+npm install --production
+pm2 restart dpanel
+pm2 logs dpanel --lines 30  # Check for errors</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+          <div class="callout tip">
+            <i data-lucide="lightbulb" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">The update process is zero-downtime for the web server (Apache). Only DPanel itself restarts — hosted sites remain online.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-backups">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="hard-drive" width="16" height="16" class="acc-icon"></i>
+          Full Server Backups
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>For complete server backups, back up the following locations:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre">#!/bin/bash
+# Full DPanel backup script
+DEST="/opt/backups/$(date +%F)"
+mkdir -p "$DEST"
+
+# Web files
+tar czf "$DEST/www.tar.gz" /var/www/
+
+# All databases
+mysqldump -u dpanel -p'dpanel_db_secret_2024' \
+  --all-databases | gzip > "$DEST/all-dbs.sql.gz"
+
+# DPanel config & source
+tar czf "$DEST/dpanel.tar.gz" /opt/dpanel/
+
+# Mail spool
+tar czf "$DEST/mail.tar.gz" /var/mail/vhosts/
+
+# SSL certs
+tar czf "$DEST/certs.tar.gz" /etc/letsencrypt/
+
+echo "Backup complete: $DEST"</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-firewall">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="shield" width="16" height="16" class="acc-icon"></i>
+          Firewall &amp; Security
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Recommended UFW rules for a DPanel server:</p>
+          <div class="code-block">
+            <div class="code-lang">bash</div>
+            <pre">ufw allow 22/tcp    # SSH
+ufw allow 80/tcp    # HTTP (certbot + redirect)
+ufw allow 443/tcp   # HTTPS
+ufw allow 25/tcp    # SMTP inbound
+ufw allow 587/tcp   # SMTP submission
+ufw allow 993/tcp   # IMAP SSL
+ufw allow 110/tcp   # POP3 (optional)
+ufw allow 995/tcp   # POP3 SSL (optional)
+ufw deny 8080/tcp   # Block direct DPanel access (use proxy)
+ufw enable
+ufw status verbose</pre>
+            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          </div>
+          <div class="callout danger">
+            <i data-lucide="alert-octagon" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>Block port 8080 externally.</strong> DPanel should only be accessed via the Apache reverse proxy. Exposing port 8080 directly bypasses SSL and allows unencrypted access.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="no-results">
+      <div class="nr-icon">🔍</div>
+      <h3>No results found</h3>
+      <p>Try different search terms or browse sections in the sidebar.</p>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ Keyboard shortcuts overlay ══════════════════════════════════ -->
+<div id="shortcuts-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+  <div id="shortcuts-modal">
+    <h2><i data-lucide="keyboard" width="20" height="20"></i> Keyboard Shortcuts</h2>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Focus search</span>
+      <span class="shortcut-keys"><kbd>/</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Clear search / close overlay</span>
+      <span class="shortcut-keys"><kbd>Esc</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Show shortcuts</span>
+      <span class="shortcut-keys"><kbd>?</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Toggle dark/light mode</span>
+      <span class="shortcut-keys"><kbd>D</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Go to next section</span>
+      <span class="shortcut-keys"><kbd>J</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Go to previous section</span>
+      <span class="shortcut-keys"><kbd>K</kbd></span>
+    </div>
+    <div class="shortcut-row">
+      <span class="shortcut-desc">Back to panel</span>
+      <span class="shortcut-keys"><kbd>B</kbd></span>
+    </div>
+    <div class="shortcut-row" style="border-bottom:none;padding-top:16px">
+      <button class="btn btn-secondary" style="margin-left:auto" onclick="closeShortcuts()">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+// ── Config ────────────────────────────────────────────────────────
+const PANEL_URL = '/';   // ← Change to your panel URL if needed
+
+// ── Sidebar nav data ──────────────────────────────────────────────
+const NAV = [
+  {
+    group: 'Overview',
+    items: [
+      { label: 'Getting Started', href: '#sec-start',     icon: 'rocket' },
+      { label: 'Dashboard',       href: '#sec-dashboard', icon: 'layout-dashboard' },
+    ]
+  },
+  {
+    group: 'Hosting & Data',
+    items: [
+      { label: 'Web Hosting',  href: '#sec-hosting',   icon: 'globe' },
+      { label: 'Databases',    href: '#sec-databases', icon: 'database' },
+      { label: 'Files & Apps', href: '#sec-files',     icon: 'folder-open' },
+    ]
+  },
+  {
+    group: 'Communication',
+    items: [
+      { label: 'Mail Server', href: '#sec-mail',    icon: 'mail' },
+      { label: 'Webmail',     href: '#sec-webmail', icon: 'inbox' },
+    ]
+  },
+  {
+    group: 'Admin',
+    items: [
+      { label: 'Tools',          href: '#sec-tools',  icon: 'wrench' },
+      { label: 'Access & Users', href: '#sec-access', icon: 'users' },
+      { label: 'System',         href: '#sec-system', icon: 'settings' },
+    ]
+  }
+];
+
+// ── Build sidebar ─────────────────────────────────────────────────
+function buildSidebar() {
+  const nav = document.getElementById('sidebar');
+  const done = getProgress();
+  nav.innerHTML = '';
+
+  NAV.forEach(group => {
+    const div = document.createElement('div');
+    div.className = 'sb-group';
+
+    const itemsId = 'sbg-' + group.group.replace(/\s+/g, '-');
+    const allH = group.items.reduce((a, i) => a + (done[i.href.slice(1)] ? 1 : 0), 0);
+    const pct  = group.items.length ? Math.round(allH / group.items.length * 100) : 0;
+
+    div.innerHTML = `
+      <div class="sb-group-header" onclick="toggleSbGroup(this)">
+        ${group.group}
+        <span style="display:flex;align-items:center;gap:6px">
+          ${pct === 100 ? '<span style="color:var(--accent-green);font-size:.7rem">✓</span>' : (pct > 0 ? `<span style="color:var(--accent);font-size:.68rem">${pct}%</span>` : '')}
+          <i data-lucide="chevron-down" width="13" height="13" class="chevron"></i>
+        </span>
+      </div>
+      <div class="sb-group-items" id="${itemsId}" style="max-height:500px">
+        ${group.items.map(it => `
+          <a class="sb-item${done[it.href.slice(1)] ? ' done' : ''}" href="${it.href}" onclick="sidebarNav(event, this)">
+            <i data-lucide="${it.icon}" width="15" height="15"></i>
+            ${it.label}
+            <span class="sb-check">${done[it.href.slice(1)] ? '<i data-lucide="check" width="10" height="10"></i>' : ''}</span>
+          </a>
+        `).join('')}
+      </div>
+    `;
+    nav.appendChild(div);
+  });
+  lucide.createIcons();
+  updateActiveNav();
+}
+
+function toggleSbGroup(header) {
+  const group = header.closest('.sb-group');
+  const items = group.querySelector('.sb-group-items');
+  const isCollapsed = group.classList.toggle('collapsed');
+  items.style.maxHeight = isCollapsed ? '0' : '500px';
+}
+
+function sidebarNav(e, el) {
+  e.preventDefault();
+  const target = document.querySelector(el.getAttribute('href'));
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Close mobile sidebar
+  if (window.innerWidth <= 900) closeMobileSidebar();
+}
+
+// ── Accordion ─────────────────────────────────────────────────────
+function toggleAcc(header) {
+  const acc = header.closest('.accordion');
+  acc.classList.toggle('open');
+}
+
+// ── Progress tracking ─────────────────────────────────────────────
+function getProgress() {
+  try { return JSON.parse(localStorage.getItem('dpanel-guide-progress') || '{}'); } catch { return {}; }
+}
+function saveProgress(key, val) {
+  const p = getProgress();
+  p[key] = val;
+  localStorage.setItem('dpanel-guide-progress', JSON.stringify(p));
+}
+
+function initMarkReadBtns() {
+  const p = getProgress();
+  document.querySelectorAll('.mark-read-btn').forEach(btn => {
+    const sec = btn.dataset.section;
+    const secId = btn.closest('.guide-section')?.id;
+    if (p[secId]) {
+      btn.classList.add('done');
+      btn.querySelector('span').textContent = 'Read ✓';
+    }
+    btn.addEventListener('click', () => {
+      const isDone = btn.classList.toggle('done');
+      const label  = btn.querySelector('span');
+      label.textContent = isDone ? 'Read ✓' : 'Mark read';
+      saveProgress(secId, isDone);
+      buildSidebar();
+      lucide.createIcons();
+    });
+  });
+}
+
+// ── Active nav on scroll ──────────────────────────────────────────
+const sections = [];
+function collectSections() {
+  document.querySelectorAll('.guide-section').forEach(s => sections.push(s));
+}
+function updateActiveNav() {
+  const scrollY = window.scrollY + 80;
+  let active = sections[0];
+  sections.forEach(s => { if (s.offsetTop <= scrollY) active = s; });
+  document.querySelectorAll('.sb-item').forEach(item => {
+    const href = item.getAttribute('href');
+    item.classList.toggle('active', href === '#' + (active?.id || ''));
+  });
+}
+
+// ── Reading progress bar ──────────────────────────────────────────
+function updateReadingProgress() {
+  const el = document.getElementById('reading-progress');
+  const docH = document.documentElement.scrollHeight - window.innerHeight;
+  const pct  = docH > 0 ? Math.min(window.scrollY / docH, 1) : 0;
+  el.style.transform = `scaleX(${pct})`;
+}
+
+// ── Search ────────────────────────────────────────────────────────
+let searchActive = false;
+function initSearch() {
+  const input = document.getElementById('search-input');
+  const clear = document.getElementById('search-clear');
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clear.classList.toggle('visible', q.length > 0);
+    filterContent(q);
+  });
+  clear.addEventListener('click', () => { input.value = ''; clear.classList.remove('visible'); filterContent(''); input.focus(); });
+}
+
+function filterContent(q) {
+  const term = q.toLowerCase();
+  const sections = document.querySelectorAll('.guide-section');
+  let anyVisible = false;
+
+  // Remove old marks
+  document.querySelectorAll('mark').forEach(m => {
+    const parent = m.parentNode;
+    parent.replaceChild(document.createTextNode(m.textContent), m);
+    parent.normalize();
+  });
+
+  sections.forEach(sec => {
+    if (!term) { sec.style.display = ''; anyVisible = true; return; }
+    const text = sec.textContent.toLowerCase();
+    if (text.includes(term)) {
+      sec.style.display = '';
+      anyVisible = true;
+      // Open all accordions in matched section
+      sec.querySelectorAll('.accordion').forEach(a => a.classList.add('open'));
+      // Highlight matches
+      highlightText(sec, term);
+    } else {
+      sec.style.display = 'none';
+    }
+  });
+
+  document.getElementById('no-results').style.display = anyVisible ? 'none' : 'block';
+}
+
+function highlightText(node, term) {
+  if (node.nodeType === 3) {
+    const idx = node.textContent.toLowerCase().indexOf(term);
+    if (idx < 0) return;
+    const mark  = document.createElement('mark');
+    const before = document.createTextNode(node.textContent.slice(0, idx));
+    mark.textContent = node.textContent.slice(idx, idx + term.length);
+    const after  = document.createTextNode(node.textContent.slice(idx + term.length));
+    const parent = node.parentNode;
+    parent.insertBefore(before, node);
+    parent.insertBefore(mark, node);
+    parent.insertBefore(after, node);
+    parent.removeChild(node);
+    // Continue on remainder
+    if (after.textContent.toLowerCase().includes(term)) highlightText(after, term);
+    return;
+  }
+  if (node.nodeType === 1 && !['SCRIPT','STYLE','INPUT','BUTTON'].includes(node.tagName)) {
+    [...node.childNodes].forEach(child => highlightText(child, term));
+  }
+}
+
+// ── Theme ─────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('dpanel-guide-theme');
+  const pref  = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  setTheme(saved || pref);
+}
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('dpanel-guide-theme', t);
+  document.getElementById('theme-icon-light').style.display = t === 'dark'  ? ''     : 'none';
+  document.getElementById('theme-icon-dark').style.display  = t === 'light' ? ''     : 'none';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  setTheme(cur === 'dark' ? 'light' : 'dark');
+}
+
+// ── Shortcuts overlay ─────────────────────────────────────────────
+function openShortcuts() { document.getElementById('shortcuts-overlay').classList.add('open'); }
+function closeShortcuts() { document.getElementById('shortcuts-overlay').classList.remove('open'); }
+
+// ── Navigation helpers ────────────────────────────────────────────
+function goBack() {
+  if (window.opener || window.history.length > 1) {
+    window.close();
+    setTimeout(() => { window.location.href = PANEL_URL; }, 200);
+  } else {
+    window.location.href = PANEL_URL;
+  }
+}
+
+function navSection(dir) {
+  const visible = sections.filter(s => s.style.display !== 'none');
+  if (!visible.length) return;
+  const scrollY = window.scrollY + 100;
+  let curIdx = 0;
+  visible.forEach((s, i) => { if (s.offsetTop <= scrollY) curIdx = i; });
+  const nextIdx = Math.max(0, Math.min(visible.length - 1, curIdx + dir));
+  visible[nextIdx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Mobile sidebar ────────────────────────────────────────────────
+function closeMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── Copy to clipboard ─────────────────────────────────────────────
+async function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  try {
+    await navigator.clipboard.writeText(pre.textContent.trim());
+    btn.classList.add('copied');
+    btn.innerHTML = '<i data-lucide="check" width="12" height="12"></i>Copied!';
+    lucide.createIcons({ nodes: [btn] });
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<i data-lucide="copy" width="12" height="12"></i>Copy';
+      lucide.createIcons({ nodes: [btn] });
+    }, 2000);
+  } catch { btn.textContent = 'Error'; }
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--accent-green)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  } catch {}
+}
+
+// ── Demo: Domain config preview ───────────────────────────────────
+function previewDomain() {
+  const domain = document.getElementById('dd-domain').value.trim() || 'example.com';
+  const php    = document.getElementById('dd-php').value;
+  const out    = document.getElementById('dd-output');
+  const docRoot = `/var/www/${domain}/public_html`;
+  const config = `<VirtualHost *:80>
+  ServerName ${domain}
+  ServerAlias www.${domain}
+  DocumentRoot ${docRoot}
+  <Directory ${docRoot}>
+    AllowOverride All
+    Require all granted
+  </Directory>
+  <FilesMatch \\.php$>
+    SetHandler "proxy:unix:/run/php/php${php}-fpm.sock|fcgi://localhost"
+  </FilesMatch>
+  ErrorLog /var/log/apache2/${domain}-error.log
+  CustomLog /var/log/apache2/${domain}-access.log combined
+</VirtualHost>`;
+  out.style.display = 'flex';
+  out.style.alignItems = 'flex-start';
+  out.style.flexDirection = 'column';
+  out.textContent = config;
+}
+
+// ── Demo: SSL Wizard ──────────────────────────────────────────────
+let sslRunning = false;
+async function runSslWizard() {
+  if (sslRunning) return;
+  sslRunning = true;
+  const domain  = document.getElementById('ssl-domain').value.trim() || 'example.com';
+  const status  = document.getElementById('ssl-status');
+  const fill    = document.getElementById('ssl-fill');
+  const btn     = document.getElementById('ssl-btn');
+  const stepEls = document.querySelectorAll('#ssl-steps .ssl-step');
+
+  btn.disabled = true;
+  status.style.display = 'flex';
+  status.className = 'demo-output';
+
+  const steps = [
+    { msg: `Checking DNS for ${domain}…`,          pct: 10 },
+    { msg: `A record → <server-1-ip> ✓`,            pct: 30 },
+    { msg: `Requesting HTTP-01 challenge…`,         pct: 50 },
+    { msg: `Let's Encrypt verified challenge ✓`,    pct: 70 },
+    { msg: `Certificate issued! Updating Apache…`,  pct: 85 },
+    { msg: `Apache reloaded. HTTPS live for ${domain} 🎉`, pct: 100 },
+  ];
+
+  for (let i = 0; i < steps.length; i++) {
+    await delay(700 + Math.random() * 300);
+    status.textContent = steps[i].msg;
+    fill.style.width   = steps[i].pct + '%';
+    // Update step dots
+    const dotIdx = Math.floor(i / steps.length * stepEls.length);
+    stepEls.forEach((s, si) => {
+      s.classList.remove('active', 'done');
+      if (si < dotIdx) s.classList.add('done');
+      else if (si === dotIdx) s.classList.add('active');
+    });
+  }
+
+  status.className = 'demo-output success';
+  stepEls.forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
+
+  setTimeout(() => {
+    sslRunning = false;
+    btn.disabled = false;
+    // Reset
+    setTimeout(() => {
+      fill.style.width = '0%';
+      status.style.display = 'none';
+      stepEls.forEach((s, si) => {
+        s.classList.remove('done');
+        if (si === 0) s.classList.add('active');
+      });
+    }, 3000);
+  }, 1000);
+}
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Cron Builder ──────────────────────────────────────────────────
+function getCronParts() {
+  return [
+    document.getElementById('cron-min').value || '*',
+    document.getElementById('cron-hr').value  || '*',
+    document.getElementById('cron-dom').value || '*',
+    document.getElementById('cron-mon').value || '*',
+    document.getElementById('cron-dow').value || '*',
+  ];
+}
+
+function updateCron() {
+  const [min, hr, dom, mon, dow] = getCronParts();
+  const expr = `${min} ${hr} ${dom} ${mon} ${dow}`;
+  document.getElementById('cron-expr-text').textContent = expr;
+  document.getElementById('cron-human').innerHTML = '<strong>' + humanizeCron(min, hr, dom, mon, dow) + '</strong>';
+}
+
+function setCron(expr) {
+  const [min, hr, dom, mon, dow] = expr.split(' ');
+  document.getElementById('cron-min').value = min;
+  document.getElementById('cron-hr').value  = hr;
+  document.getElementById('cron-dom').value = dom;
+  document.getElementById('cron-mon').value = mon;
+  document.getElementById('cron-dow').value = dow;
+  updateCron();
+}
+
+function humanizeCron(min, hr, dom, mon, dow) {
+  if (min === '*' && hr === '*' && dom === '*' && mon === '*' && dow === '*') return 'Every minute';
+  if (min === '0' && hr === '*') return 'Every hour (at :00)';
+  if (min.startsWith('*/')) return `Every ${min.slice(2)} minutes`;
+  if (hr === '*') return `Every hour at minute ${min}`;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  let desc = '';
+  if (dom !== '*') desc += ` on day ${dom} of the month`;
+  if (dow !== '*') {
+    const d = dow.includes('-') ? `${days[dow.split('-')[0]]}–${days[dow.split('-')[1]]}` : days[parseInt(dow)] || dow;
+    desc += ` on ${d}`;
+  }
+  if (mon !== '*') desc += ` in month ${mon}`;
+  return `At ${hr.padStart(2,'0')}:${min.padStart(2,'0')}${desc || ' every day'}`;
+}
+
+async function copyCron() {
+  const expr = document.getElementById('cron-expr-text').textContent;
+  const btn  = document.querySelector('#cron-expr .copy-btn');
+  await copyText(expr, btn);
+}
+
+// ── DNS Records Demo ──────────────────────────────────────────────
+function showDnsRecords() {
+  const domain = document.getElementById('dns-domain').value.trim() || 'example.com';
+  const ip     = document.getElementById('dns-ip').value.trim()     || '0.0.0.0';
+  const dkimSelector = 'mail';
+  const fakeDkim = `v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3qQ…(your public key)…IDAQAB`;
+
+  const records = [
+    { type: 'A',   name: domain,                                value: ip,                                              desc: 'Domain A record' },
+    { type: 'A',   name: `www.${domain}`,                       value: ip,                                              desc: 'www subdomain' },
+    { type: 'MX',  name: domain,                                value: `10 mail.${domain}`,                             desc: 'Mail exchanger (priority 10)' },
+    { type: 'A',   name: `mail.${domain}`,                      value: ip,                                              desc: 'Mail server A record' },
+    { type: 'TXT', name: domain,                                value: `v=spf1 a mx ip4:${ip} ~all`,                   desc: 'SPF record' },
+    { type: 'TXT', name: `${dkimSelector}._domainkey.${domain}`,value: fakeDkim,                                        desc: 'DKIM public key' },
+    { type: 'TXT', name: `_dmarc.${domain}`,                   value: `v=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}`, desc: 'DMARC policy' },
+  ];
+
+  const container = document.getElementById('dns-records');
+  container.style.display = 'block';
+  container.innerHTML = records.map(r => `
+    <div class="dns-record">
+      <span class="dns-type ${r.type.toLowerCase()}">${r.type}</span>
+      <div style="flex:1;min-width:0">
+        <div class="dns-name">${r.name} <span style="color:var(--text-muted);font-weight:400;font-size:.75rem">— ${r.desc}</span></div>
+        <div class="dns-val">${r.value}</div>
+      </div>
+      <button class="dns-copy" onclick="copyText('${r.value.replace(/'/g,"\\'")}', this)">Copy</button>
+    </div>
+  `).join('');
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag);
+  const overlay = document.getElementById('shortcuts-overlay');
+
+  if (e.key === 'Escape') {
+    if (overlay.classList.contains('open')) { closeShortcuts(); return; }
+    const inp = document.getElementById('search-input');
+    if (inp.value) { inp.value = ''; filterContent(''); document.getElementById('search-clear').classList.remove('visible'); return; }
+  }
+  if (inInput) return;
+
+  switch (e.key) {
+    case '/': e.preventDefault(); document.getElementById('search-input').focus(); break;
+    case '?': openShortcuts(); break;
+    case 'd': case 'D': toggleTheme(); break;
+    case 'j': case 'J': navSection(1); break;
+    case 'k': case 'K': navSection(-1); break;
+    case 'b': case 'B': goBack(); break;
+  }
+});
+
+// ── Buttons ───────────────────────────────────────────────────────
+document.getElementById('theme-btn').addEventListener('click', toggleTheme);
+document.getElementById('shortcuts-btn').addEventListener('click', openShortcuts);
+document.getElementById('shortcuts-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeShortcuts();
+});
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+});
+document.getElementById('sidebar-overlay').addEventListener('click', closeMobileSidebar);
+
+// ── Scroll handlers ───────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  updateActiveNav();
+  updateReadingProgress();
+}, { passive: true });
+
+// ── Init ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  buildSidebar();
+  collectSections();
+  initSearch();
+  initMarkReadBtns();
+  lucide.createIcons();
+  updateActiveNav();
+  updateCron(); // set initial cron description
+});
+</script>
+</body>
+</html>
