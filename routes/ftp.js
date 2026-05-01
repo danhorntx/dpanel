@@ -10,7 +10,7 @@ const {
 const { logAction } = require('../lib/shell');
 const router   = express.Router();
 
-const KEYS_DIR = '/etc/dpanel-keys';
+const HOME_BASE = '/home';
 
 // ── GET /api/ftp?domain=x ─────────────────────────────────────────────────────
 router.get('/', (req, res) => {
@@ -71,14 +71,14 @@ router.put('/:username/sshkey', (req, res) => {
   const username = sanitizeUsername(req.params.username);
   const { sshKey } = req.body;
   try {
-    const keyDir = `${KEYS_DIR}/${username}`;
+    const sshDir = `${HOME_BASE}/${username}/.ssh`;
     if (sshKey && sshKey.trim()) {
-      fs.mkdirSync(keyDir, { recursive: true });
-      fs.writeFileSync(`${keyDir}/authorized_keys`, sshKey.trim() + '\n', { mode: 0o600 });
-      execSync(`chown -R root:${username} ${keyDir}`);
-      execSync(`chmod 750 ${keyDir}`);
+      fs.mkdirSync(sshDir, { recursive: true });
+      fs.writeFileSync(`${sshDir}/authorized_keys`, sshKey.trim() + '\n', { mode: 0o600 });
+      execSync(`chmod 700 ${sshDir}`);
+      execSync(`chown -R ${username}:${username} ${sshDir}`);
     } else {
-      if (fs.existsSync(`${keyDir}/authorized_keys`)) fs.unlinkSync(`${keyDir}/authorized_keys`);
+      if (fs.existsSync(`${sshDir}/authorized_keys`)) fs.unlinkSync(`${sshDir}/authorized_keys`);
     }
     const accounts = readAccounts();
     const acc = accounts.find(a => a.username === username);

@@ -8,9 +8,10 @@ const session       = require('express-session');
 const MySQLStore    = require('express-mysql-session')(session);
 const cron          = require('node-cron');
 const WebSocket     = require('ws');
-const { requireLogin } = require('./lib/auth');
+const { requireLogin }  = require('./lib/auth');
 const { attachTerminal } = require('./routes/terminal');
-const { pool, migrate } = require('./lib/db');
+const { pool, migrate }  = require('./lib/db');
+const ingester           = require('./lib/analytics-ingester');
 
 const CERT_DIR = path.join(__dirname, 'certs');
 const PORT     = process.env.PORT || 8080;
@@ -59,6 +60,7 @@ app.use('/auth', require('./routes/auth'));
 // ── Protected API routes ──────────────────────────────────────────────────────
 app.use('/api/dashboard',   requireLogin, require('./routes/dashboard'));
 app.use('/api/domains',     requireLogin, require('./routes/domains'));
+app.use('/api/dns',         requireLogin, require('./routes/dns'));
 app.use('/api/mail',        requireLogin, require('./routes/mail'));
 app.use('/api/ssl',         requireLogin, require('./routes/ssl'));
 app.use('/api/logs',        requireLogin, require('./routes/logs'));
@@ -74,6 +76,7 @@ app.use('/api/git',         requireLogin, require('./routes/git'));
 app.use('/api/files',       requireLogin, require('./routes/files'));
 app.use('/api/healthcheck', requireLogin, require('./routes/healthcheck'));
 app.use('/api/users',       requireLogin, require('./routes/users'));
+app.use('/api/analytics',   requireLogin, require('./routes/analytics'));
 app.use('/webmail',                       require('./routes/webmail'));
 
 // Authenticated HTML pages
@@ -116,6 +119,8 @@ migrate()
     server.listen(PORT, () => {
       console.log(`[DPanel] Listening on port ${PORT}`);
     });
+    // Start analytics log ingester (backfills historical data, then polls every 60s)
+    ingester.start();
   })
   .catch(err => {
     console.error('[DPanel] DB migration failed — aborting:', err.message);

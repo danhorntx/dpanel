@@ -303,3 +303,297 @@ body { background: var(--bg-base); color: var(--text-primary); }
   .topbar { left: 0; }
   .content-area { margin-left: 0; padding: 12px; }
 }
+
+/* ── Sidebar resize & collapse ───────────────────────────────────────────────── */
+
+/* Smooth transitions on layout-critical props (toggle only, not drag) */
+.sidebar       { transition: width 200ms ease-in-out; }
+.topbar        { transition: left  200ms ease-in-out; }
+.content-area  { transition: margin-left 200ms ease-in-out; }
+
+/* Kill transitions during active drag so resize is 1-to-1 with cursor */
+body.sidebar-dragging .sidebar,
+body.sidebar-dragging .topbar,
+body.sidebar-dragging .content-area { transition: none !important; }
+
+/* Kill transitions when restoring state on load (avoid FOUC flash) */
+body.sidebar-instant .sidebar,
+body.sidebar-instant .topbar,
+body.sidebar-instant .content-area { transition: none !important; }
+
+/* Drag resize handle — sits on the inner-right edge of the sidebar */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0; right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 50;
+}
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 2px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background 180ms, opacity 180ms;
+}
+.sidebar-resize-handle:hover::after,
+body.sidebar-dragging .sidebar-resize-handle::after {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+/* Collapse toggle — sits in the sidebar footer row */
+.sidebar-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+.sidebar-collapse-btn {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
+}
+.sidebar-collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+/* Floating expand tab — visible only when sidebar is collapsed */
+.sidebar-expand-tab {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 16px; height: 52px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  z-index: 45;
+  padding: 0;
+  transition: width 150ms ease-in-out, color 150ms, background 150ms;
+}
+.sidebar-expand-tab:hover {
+  width: 22px;
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+.sidebar-expand-tab.visible { display: flex; }
+
+/* On mobile, hide resize & collapse controls (sidebar uses transform already) */
+@media (max-width: 768px) {
+  .sidebar-resize-handle,
+  .sidebar-collapse-btn,
+  .sidebar-expand-tab { display: none !important; }
+}
+
+/* ── [NEW] Sidebar search ─────────────────────────────────────────────────── */
+
+.nav-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 2px 0 6px;
+}
+
+.nav-search-icon {
+  position: absolute;
+  left: 9px;
+  color: var(--text-muted);
+  pointer-events: none;
+  flex-shrink: 0;
+  /* vertically centred inside the input */
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.nav-search-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  padding: 6px 26px 6px 28px;
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out-expo),
+              box-shadow    var(--duration-fast) var(--ease-out-expo);
+  /* hide browser native search chrome (×, magnifier) */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.nav-search-input::-webkit-search-cancel-button,
+.nav-search-input::-webkit-search-decoration { display: none; }
+.nav-search-input::placeholder { color: var(--text-muted); }
+.nav-search-input:focus {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-focus);
+}
+
+/* custom × clear button */
+.nav-search-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration-fast);
+  line-height: 1;
+}
+.nav-search-clear:hover { color: var(--text-secondary); }
+
+/* ── [NEW] Collapsible nav groups ─────────────────────────────────────────── */
+
+/* wrapper: gap between groups is handled by sidebar-nav's existing gap:1px */
+.nav-group { }
+
+/* The category label is now a button; reset defaults then re-apply label style */
+.nav-group-btn {
+  /* full button reset */
+  all: unset;
+  box-sizing: border-box;
+  /* match the original .nav-section-label layout */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 6px 4px;
+  /* match the original .nav-section-label typography */
+  font-family: var(--font-ui);
+  font-size: 0.575rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  /* interactive */
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out-expo);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.nav-group-btn:hover { color: var(--text-secondary); }
+/* visible focus ring — keyboard only */
+.nav-group-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* chevron — rotates –90° when group is collapsed */
+.nav-group-chevron {
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition: transform    var(--duration-base) var(--ease-out-expo),
+              opacity      var(--duration-fast)  var(--ease-out-expo);
+}
+.nav-group-btn:hover .nav-group-chevron { opacity: 0.75; }
+.nav-group.is-collapsed .nav-group-chevron { transform: rotate(-90deg); }
+
+/*
+ * CSS grid trick for smooth height animation without JS measurement.
+ * grid-template-rows: 1fr → 0fr collapses to content height 0 while
+ * allowing the transition to animate. Requires a min-height:0 inner wrapper.
+ */
+.nav-group-items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--duration-base) var(--ease-out-expo);
+  overflow: hidden;
+}
+.nav-group.is-collapsed .nav-group-items {
+  grid-template-rows: 0fr;
+}
+
+/* inner wrapper must have min-height:0 for the grid trick to work */
+.nav-group-inner {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* tiny vertical padding so focus rings on first/last item aren't clipped */
+  padding: 1px 0 2px;
+}
+
+/* ── [NEW] Search filter state ────────────────────────────────────────────── */
+
+/* Items hidden by the search filter */
+.nav-item.nav-hidden {
+  display: none;
+}
+
+/* When a group has no visible children during search, hide the whole group */
+.nav-group.nav-group-hidden {
+  display: none;
+}
+
+/* "no results" message shown inside nav when search yields nothing */
+.nav-search-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 8px;
+}
+
+/* ── [NEW] Collapse-all / Expand-all button ──────────────────────────────── */
+
+.nav-collapseall-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 2px 6px 7px;
+  font-family: var(--font-ui);
+  font-size: 0.575rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out-expo);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.nav-collapseall-btn:hover { color: var(--text-secondary); }
+.nav-collapseall-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Rotate icon 180° when all groups are collapsed (expand state) */
+.nav-collapseall-btn.is-all-collapsed .nav-collapseall-icon {
+  transform: rotate(180deg);
+}
+.nav-collapseall-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform var(--duration-base) var(--ease-out-expo);
+}
+.nav-collapseall-btn:hover .nav-collapseall-icon { opacity: 0.9; }

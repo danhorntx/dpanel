@@ -43,8 +43,9 @@ window.domains = (() => {
   }
 
   async function add() {
-    const name = document.getElementById('addDomainName').value.trim();
-    const root = document.getElementById('addDomainRoot').value.trim();
+    const name        = document.getElementById('addDomainName').value.trim();
+    const root        = document.getElementById('addDomainRoot').value.trim();
+    const mailDns     = document.getElementById('addDomainMailDns')?.checked || false;
     if (!name) return toast('error', 'Validation', 'Domain name is required.');
 
     const btn = document.querySelector('#modalAddDomain .btn-primary');
@@ -56,7 +57,7 @@ window.domains = (() => {
       if (btn.disabled) btn.textContent = 'Requesting SSL…';
     }, 4000);
 
-    const data = await api.post('/api/domains', { domain: name, docRoot: root });
+    const data = await api.post('/api/domains', { domain: name, docRoot: root, setupMailDns: mailDns });
     clearTimeout(sslMsg);
     btn.classList.remove('loading'); btn.disabled = false;
     btn.textContent = 'Create Domain';
@@ -65,6 +66,7 @@ window.domains = (() => {
       closeModal('modalAddDomain');
       document.getElementById('addDomainName').value = '';
       document.getElementById('addDomainRoot').value = '';
+      document.getElementById('addDomainMailDns').checked = false;
       load();
       showCredentials(data.credentials);
     } else {
@@ -89,6 +91,21 @@ window.domains = (() => {
         <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Go to <strong>SSL Certs → AutoSSL</strong> once DNS fully propagates.</p>`;
     } else {
       sslEl.innerHTML = '<span class="badge badge-muted">SSL Pending</span>';
+    }
+
+    // Mail DNS status (only shown when user checked the box)
+    const mailDnsEl = document.getElementById('credMailDnsStatus');
+    if (c.mailDns) {
+      mailDnsEl.style.display = '';
+      if (c.mailDns.applied) {
+        mailDnsEl.innerHTML = '<span class="badge badge-green"><span class="badge-dot"></span>Mail DNS configured — MX, SPF, and DMARC records added</span>';
+      } else {
+        const note = c.mailDns.message || c.mailDns.error || 'DNS zone not found';
+        mailDnsEl.innerHTML = `<span class="badge badge-amber">Mail DNS pending</span>
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">${note} — you can configure it later under <strong style="color:var(--text-secondary)">Mail → DNS Setup</strong>.</p>`;
+      }
+    } else {
+      mailDnsEl.style.display = 'none';
     }
 
     // SFTP credentials
