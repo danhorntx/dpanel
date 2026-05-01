@@ -1,14 +1,16 @@
 'use strict';
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express       = require('express');
 const https         = require('https');
 const http          = require('http');
 const fs            = require('fs');
 const path          = require('path');
+const helmet        = require('helmet');
 const session       = require('express-session');
 const MySQLStore    = require('express-mysql-session')(session);
 const cron          = require('node-cron');
 const WebSocket     = require('ws');
-const { requireLogin }  = require('./lib/auth');
+const { requireLogin }   = require('./lib/auth');
 const { attachTerminal } = require('./routes/terminal');
 const { pool, migrate }  = require('./lib/db');
 const ingester           = require('./lib/analytics-ingester');
@@ -18,27 +20,39 @@ const PORT     = process.env.PORT || 8080;
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
+
+// Security headers (helmet) — applied before everything else
+// CSP is relaxed enough for the panel's inline scripts/styles
+app.use(helmet({
+  contentSecurityPolicy: false, // dashboard uses inline scripts — we'll tighten this later
+  crossOriginEmbedderPolicy: false,
+}));
+app.use((req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── Session store (MariaDB-backed) ────────────────────────────────────────────
 const sessionStore = new MySQLStore({
   schema: {
-    tableName:      'dpanel_sessions',
+    tableName:   'dpanel_sessions',
     columnNames: {
       session_id: 'session_id',
       expires:    'expires',
       data:       'data',
     },
   },
-  createDatabaseTable: true,
-  clearExpired:        true,
-  checkExpirationInterval: 15 * 60 * 1000, // every 15 min
-  expiration: 8 * 60 * 60 * 1000,          // 8 hours
+  createDatabaseTable:     true,
+  clearExpired:            true,
+  checkExpirationInterval: 15 * 60 * 1000,
+  expiration:               8 * 60 * 60 * 1000,
 }, pool);
 
 const sessionMiddleware = session({
-  secret:            process.env.SESSION_SECRET || 'dpanel-session-secret-change-me',
+  secret:            process.env.SESSION_SECRET, // required — checked in db.js startup
   resave:            false,
   saveUninitialized: false,
   store:             sessionStore,
@@ -119,7 +133,6 @@ migrate()
     server.listen(PORT, () => {
       console.log(`[DPanel] Listening on port ${PORT}`);
     });
-    // Start analytics log ingester (backfills historical data, then polls every 60s)
     ingester.start();
   })
   .catch(err => {

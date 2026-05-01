@@ -1,11 +1,8 @@
 'use strict';
 const express  = require('express');
 const bcrypt   = require('bcryptjs');
-const fs       = require('fs');
-const path     = require('path');
+const { pool, audit } = require('../lib/db');
 const router   = express.Router();
-
-const CONFIG_FILE = path.join(__dirname, '..', 'config.json');
 
 // GET server info (IP, hostname) for the DNS helper
 router.get('/server-info', (req, res) => {
@@ -19,7 +16,7 @@ router.get('/server-info', (req, res) => {
   }
 });
 
-// PUT change admin password
+// PUT /api/settings/password — change password for the currently logged-in user
 router.put('/password', async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -28,19 +25,33 @@ router.put('/password', async (req, res) => {
     if (newPassword.length < 8)
       return res.json({ success: false, error: 'New password must be at least 8 characters.' });
 
-    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    const match  = await bcrypt.compare(currentPassword, config.passwordHash);
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated.' });
+
+    // Load current hash from DB
+    const [[user]] = await pool.query(
+      'SELECT id, username, password_hash FROM dpanel_users WHERE id = ?',
+      [userId]
+    );
+    if (!user) return res.json({ success: false, error: 'User not found.' });
+
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
     if (!match) return res.json({ success: false, error: 'Current password is incorrect.' });
 
-    config.passwordHash = await bcrypt.hash(newPassword, 12);
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    require('child_process').execSync(`chmod 600 ${CONFIG_FILE}`);
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      'UPDATE dpanel_users SET password_hash = ? WHERE id = ?',
+      [newHash, userId]
+    );
 
-    // Destroy session so they have to log in with new password
+    await audit(userId, user.username, 'settings:change-password', null, null, req.ip);
+
+    // Destroy session — user must log in again with new password
     req.session.destroy(() => {});
     res.json({ success: true });
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    console.error('[settings] password change error:', err.message);
+    res.json({ success: false, error: 'Internal error.' });
   }
 });
 

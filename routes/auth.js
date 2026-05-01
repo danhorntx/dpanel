@@ -7,10 +7,12 @@ const router    = express.Router();
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  // DPanel is accessed directly or behind Apache on loopback — don't trust X-Forwarded-For
+  validate: { xForwardedForHeader: false },
 });
 
 router.post('/login', loginLimiter, async (req, res) => {
@@ -41,7 +43,6 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     // Stamp session
-    req.session.authenticated = true; // keep legacy flag for compatibility
     req.session.userId        = user.id;
     req.session.username      = user.username;
     req.session.role          = user.role;

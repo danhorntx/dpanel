@@ -122,7 +122,9 @@ router.post('/upload', upload.array('files'), (req, res) => {
     if (!fs.existsSync(targetDir)) return res.json({ success: false, error: 'Target path not found.' });
 
     for (const file of req.files) {
-      const dest = path.join(targetDir, file.originalname);
+      // Strip any path components from the original name — only keep the basename
+      const safeName = path.basename(file.originalname).replace(/[^\w\s.\-]/g, '_');
+      const dest = path.join(targetDir, safeName);
       fs.renameSync(file.path, dest);
     }
     res.json({ success: true, data: { uploaded: req.files.length } });
