@@ -3176,16 +3176,6 @@ window.toast = function(type, title, msg) {
   }, 4000);
 };
 
-// ── Spotlight effect on cards ─────────────────────────────────────────────────
-document.addEventListener('mousemove', e => {
-  document.querySelectorAll('.card-outer').forEach(card => {
-    const rect = card.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
-    const y = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
-    card.style.setProperty('--mx', x + '%');
-    card.style.setProperty('--my', y + '%');
-  });
-});
 
 // ── Domain context switcher ───────────────────────────────────────────────────
 async function switchActiveDomain(domain) {

@@ -99,12 +99,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 2px;
-  transition: border-color var(--duration-base) var(--ease-out-expo),
-              box-shadow var(--duration-base) var(--ease-out-expo);
+  position: relative;
+  overflow: hidden;
+  contain: paint;
+  transition: border-color var(--duration-fast);
 }
 .card-outer:hover {
   border-color: var(--border-strong);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 16px 40px -8px rgba(0,0,0,0.4);
 }
 
 .card-inner {
@@ -114,20 +115,6 @@
   padding: var(--space-4) var(--space-5);
 }
 
-/* Spotlight border on hover */
-.card-outer { position: relative; overflow: hidden; }
-.card-outer::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(79,142,247,0.1) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity var(--duration-base) var(--ease-out-expo);
-  pointer-events: none;
-  z-index: 0;
-}
-.card-outer:hover::before { opacity: 1; }
 
 .stat-card .card-inner {
   padding: var(--space-4) var(--space-4);
@@ -354,6 +341,17 @@ select.input {
 .checkbox-row label { margin: 0; cursor: pointer; }
 
 /* ── Modals ──────────────────────────────────────────────────────────────────── */
+/*
+ * IMPORTANT — Hidden modals MUST use visibility:hidden (not just opacity:0).
+ * Browsers do not skip painting opacity:0 elements. Because every modal-backdrop
+ * is `position:fixed; inset:0` and applies `backdrop-filter: blur(4px)`, leaving
+ * a dozen+ hidden backdrops permanently "painted" forces the GPU to re-rasterize
+ * a viewport-sized blur on every page repaint. Combined with infinite CSS
+ * animations inside hidden modals (e.g. .skeleton shimmer), this caused the
+ * dashboard-wide flickering that mouse-hover repaints made visible.
+ * `visibility: hidden` causes the browser to skip painting the element and all
+ * its descendants, eliminating both the blur cost and any animated child cost.
+ */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -365,10 +363,20 @@ select.input {
   justify-content: center;
   padding: var(--space-4);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease-out-expo);
+  /* On close: fade opacity, then flip visibility to hidden after the fade. */
+  transition: opacity var(--duration-base) var(--ease-out-expo),
+              visibility 0s linear var(--duration-base);
 }
-.modal-backdrop.open { opacity: 1; pointer-events: all; }
+.modal-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: all;
+  /* On open: flip visibility immediately so the fade-in is actually visible. */
+  transition: opacity var(--duration-base) var(--ease-out-expo),
+              visibility 0s linear 0s;
+}
 
 .modal-outer {
   background: rgba(255,255,255,0.025);
