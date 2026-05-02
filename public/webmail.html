@@ -489,13 +489,93 @@ body.sidebar-open #mobileNavOverlay { display: block; }
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* BUG-01: iframe sizing handled in JS via ResizeObserver — no overflow here */
 #readerText iframe {
   width: 100%;
   border: none;
   border-radius: var(--radius-md);
   background: #fff;
   min-height: 200px;
+  display: block;
 }
+
+/* ── Attachment panel ─────────────────────────────────────── */
+#readerAttachments {
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--duration-fast), color var(--duration-fast);
+  max-width: 220px;
+}
+.att-chip:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.att-chip svg { flex-shrink: 0; color: var(--text-muted); }
+.att-chip:hover svg { color: var(--accent); }
+.att-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-chip-size { color: var(--text-muted); flex-shrink: 0; }
+
+/* ── Search bar ───────────────────────────────────────────── */
+#searchRow {
+  display: none;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+#searchRow.open { display: flex; gap: var(--space-2); align-items: center; }
+#searchInput {
+  flex: 1;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  padding: 6px var(--space-3);
+  outline: none;
+}
+#searchInput:focus { border-color: var(--accent); }
+#searchInput::placeholder { color: var(--text-muted); }
+.search-clear-btn { flex-shrink: 0; }
+
+/* ── Move-folder popover ──────────────────────────────────── */
+.move-popover-wrap { position: relative; }
+#moveFolderPopover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  min-width: 180px;
+  padding: var(--space-1) 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+#moveFolderPopover.open { display: block; }
+.move-folder-item {
+  padding: 7px var(--space-4);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.move-folder-item:hover { background: var(--bg-surface); color: var(--text-primary); }
 
 /* ── Back button (mobile reader) ─────────────────────── */
 #mobileBackBtn { display: none; }
@@ -604,6 +684,7 @@ body.sidebar-open #mobileNavOverlay { display: block; }
 
   #readerBody { padding: var(--space-4); }
   #readerHeader { padding: var(--space-3) var(--space-4); }
+  #readerAttachments { padding: var(--space-2) var(--space-4) var(--space-2); }
 }
 
 /* Scrollbar */
@@ -779,6 +860,18 @@ body.sidebar-open #mobileNavOverlay { display: block; }
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
+      <!-- FEAT-03: Search toggle -->
+      <button class="btn btn-ghost btn-xs" onclick="wm.toggleSearch()" aria-label="Search messages" title="Search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+    <!-- FEAT-03: Search input row -->
+    <div id="searchRow">
+      <input id="searchInput" placeholder="Search messages…" autocomplete="off" spellcheck="false"
+             onkeydown="if(event.key==='Enter')wm.doSearch(); if(event.key==='Escape')wm.clearSearch();">
+      <button class="btn btn-ghost btn-xs search-clear-btn" onclick="wm.clearSearch()" title="Clear search">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
     <div id="msgList" role="list"></div>
   </div>
@@ -809,17 +902,29 @@ body.sidebar-open #mobileNavOverlay { display: block; }
         </div>
         <div class="reader-hdr-actions">
           <button class="btn btn-ghost btn-sm" id="markReadBtn" onclick="wm.toggleRead()">Mark Unread</button>
+          <!-- FEAT-04: Move to folder -->
+          <div class="move-popover-wrap">
+            <button class="btn btn-ghost btn-sm" id="moveBtn" onclick="wm.toggleMovePopover(event)" title="Move to folder">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Move
+            </button>
+            <div id="moveFolderPopover" role="listbox" aria-label="Move to folder">
+              <!-- populated by JS -->
+            </div>
+          </div>
           <button class="btn btn-secondary btn-sm" id="replyBtn" onclick="wm.reply()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
             Reply
           </button>
           <button class="btn btn-danger btn-sm" id="deleteBtn" onclick="wm.deleteMsg()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-            Delete
+            Trash
           </button>
         </div>
       </div>
       <div id="readerSpam" style="display:none"></div>
+      <!-- FEAT-01: Attachment chips panel -->
+      <div id="readerAttachments" style="display:none"></div>
       <div id="readerBody">
         <div id="readerText"></div>
       </div>
@@ -839,7 +944,8 @@ body.sidebar-open #mobileNavOverlay { display: block; }
     </div>
     <div class="wm-compose-body">
       <div class="wm-compose-torow">
-        <input id="composeTo" class="input" placeholder="To" type="email" autocomplete="off" spellcheck="false">
+        <!-- BUG-04: type="text" allows comma-separated multiple recipients -->
+        <input id="composeTo" class="input" placeholder="To (comma-separated)" type="text" autocomplete="off" spellcheck="false">
         <button class="btn btn-ghost btn-xs" id="ccBccToggle" onclick="wm.toggleCcBcc()" title="Add CC / BCC">CC / BCC</button>
       </div>
       <div id="ccBccRow">
@@ -870,8 +976,9 @@ body.sidebar-open #mobileNavOverlay { display: block; }
     <h3>Keyboard shortcuts</h3>
     <div class="kbd-row"><span>Compose new message</span><kbd>c</kbd></div>
     <div class="kbd-row"><span>Reply to message</span><kbd>r</kbd></div>
-    <div class="kbd-row"><span>Delete message</span><kbd>#</kbd></div>
+    <div class="kbd-row"><span>Move to Trash</span><kbd>#</kbd></div>
     <div class="kbd-row"><span>Toggle read / unread</span><kbd>u</kbd></div>
+    <div class="kbd-row"><span>Search messages</span><kbd>/</kbd></div>
     <div class="kbd-row"><span>Close / cancel</span><kbd>Esc</kbd></div>
     <div class="kbd-row"><span>Show this help</span><kbd>?</kbd></div>
     <div style="margin-top:var(--space-4);text-align:right">
@@ -913,6 +1020,7 @@ body.sidebar-open #mobileNavOverlay { display: block; }
   </symbol>
 </svg>
 
+
 <script>
 // ── Folder icon map ─────────────────────────────────────────────────────────
 const FOLDER_ICON_MAP = {
@@ -928,6 +1036,13 @@ const FOLDER_ICON_MAP = {
 function folderIcon(name) {
   const id = FOLDER_ICON_MAP[name] || 'folder';
   return `<svg class="folder-icon-svg" aria-hidden="true"><use href="#icon-${id}"/></svg>`;
+}
+
+function fmtBytes(b) {
+  if (!b) return '';
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
 }
 
 // ── Toast ───────────────────────────────────────────────────────────────────
@@ -947,25 +1062,26 @@ function wmToast(type, message, duration = 3500) {
 
 // ── Main app ────────────────────────────────────────────────────────────────
 const wm = (() => {
-  let currentMailbox  = 'INBOX';
-  let currentPage     = 1;
-  let totalMessages   = 0;
-  let perPage         = 25;
-  let currentUid      = null;
-  let replyData       = null;
-  let currentMsgSeen  = true;
+  let currentMailbox = 'INBOX';
+  let currentPage    = 1;
+  let totalMessages  = 0;
+  let perPage        = 25;
+  let currentUid     = null;
+  let replyData      = null;
+  let currentMsgSeen = true;
+  let allFolders     = [];    // FEAT-04: move-to-folder popover
+  let searchMode     = false;
   // Draft state
-  let draftUid        = null;
-  let draftDirty      = false;
-  let draftTimer      = null;
-  let draftInterval   = null;
+  let draftUid       = null;
+  let draftDirty     = false;
+  let draftTimer     = null;
+  let draftInterval  = null;
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   async function init() {
     const res  = await fetch('/webmail/api/me');
     const data = await res.json();
     if (data.success) showApp(data.email);
-    // else stay on login screen
   }
 
   async function login(e) {
@@ -975,9 +1091,9 @@ const wm = (() => {
     document.getElementById('loginError').style.display = 'none';
 
     const res  = await fetch('/webmail/api/login', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body:    JSON.stringify({
         email:    document.getElementById('wmEmail').value,
         password: document.getElementById('wmPassword').value,
       }),
@@ -1015,9 +1131,8 @@ const wm = (() => {
   function closeReader() {
     currentUid = null;
     document.getElementById('app').classList.remove('reader-open');
-    document.getElementById('emptyReader').style.display  = '';
+    document.getElementById('emptyReader').style.display   = '';
     document.getElementById('readerContent').style.display = 'none';
-    // deselect in list
     document.querySelectorAll('.msg-item').forEach(el => el.classList.remove('active'));
   }
 
@@ -1031,28 +1146,51 @@ const wm = (() => {
       return;
     }
     const PREFERRED = ['INBOX','Drafts','Sent','Trash','Spam','Junk','Archive'];
-    const sorted = [...data.data].sort((a, b) => {
-      const ai = PREFERRED.indexOf(a.name); const bi = PREFERRED.indexOf(b.name);
+    allFolders = [...data.data].sort((a, b) => {
+      const ai = PREFERRED.indexOf(a.name), bi = PREFERRED.indexOf(b.name);
       if (ai > -1 && bi > -1) return ai - bi;
       if (ai > -1) return -1; if (bi > -1) return 1;
       return a.name.localeCompare(b.name);
     });
-    list.innerHTML = sorted.map(m => `
+    list.innerHTML = allFolders.map(m => `
       <div class="folder-item${m.path === currentMailbox ? ' active' : ''}"
            role="listitem"
+           data-folder-path="${escAttr(m.path)}"
            onclick="wm.switchFolder('${escAttr(m.path)}', this)"
            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();wm.switchFolder('${escAttr(m.path)}',this);}"
            tabindex="0"
            aria-label="${escAttr(m.name)} folder">
         ${folderIcon(m.name)}
         <span class="folder-name">${escHtml(m.name)}</span>
+        <span class="folder-count" data-unread-path="${escAttr(m.path)}" style="display:none"></span>
       </div>`).join('');
+
+    // UX-01: load unread counts in background
+    loadUnreadCounts(allFolders);
+  }
+
+  async function loadUnreadCounts(folders) {
+    for (const m of folders) {
+      try {
+        const res  = await fetch(`/webmail/api/mailboxes/status?mailbox=${encodeURIComponent(m.path)}`);
+        const data = await res.json();
+        if (data.success && data.data.unseen > 0) {
+          const badge = document.querySelector(`[data-unread-path="${CSS.escape(m.path)}"]`);
+          if (badge) {
+            badge.textContent = data.data.unseen > 99 ? '99+' : data.data.unseen;
+            badge.style.display = '';
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
   }
 
   function switchFolder(path, el) {
     currentMailbox = path;
     currentPage    = 1;
     currentUid     = null;
+    searchMode     = false;
+    clearSearch();
     document.querySelectorAll('.folder-item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
     document.getElementById('currentMailboxLabel').textContent = path;
@@ -1061,22 +1199,16 @@ const wm = (() => {
     closeSidebar();
   }
 
-  // ── Messages ──────────────────────────────────────────────────────────────
-  async function loadMessages() {
-    const list = document.getElementById('msgList');
-    list.innerHTML = '<div class="msg-loading">Loading</div>';
-    const res  = await fetch(`/webmail/api/messages?mailbox=${encodeURIComponent(currentMailbox)}&page=${currentPage}`);
-    const data = await res.json();
-    if (!data.success) {
-      list.innerHTML = `<div class="msg-empty" style="color:var(--accent-red)">${escHtml(data.error)}</div>`;
-      return;
-    }
-    const { messages, total } = data.data;
+  // ── Message list rendering ─────────────────────────────────────────────────
+  function renderMessageList(messages, total) {
+    const list  = document.getElementById('msgList');
     totalMessages = total;
     const pages = Math.ceil(total / perPage) || 1;
-    document.getElementById('pageLabel').textContent = total > 0 ? `${currentPage}/${pages}` : '';
-    document.getElementById('prevPage').disabled = currentPage <= 1;
-    document.getElementById('nextPage').disabled = currentPage >= pages;
+    document.getElementById('pageLabel').textContent =
+      searchMode ? `${messages.length} result${messages.length !== 1 ? 's' : ''}` :
+      (total > 0 ? `${currentPage}/${pages}` : '');
+    document.getElementById('prevPage').disabled = currentPage <= 1 || searchMode;
+    document.getElementById('nextPage').disabled = currentPage >= pages || searchMode;
 
     if (!messages.length) {
       list.innerHTML = `
@@ -1085,7 +1217,7 @@ const wm = (() => {
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
-          No messages here
+          ${searchMode ? 'No results' : 'No messages here'}
         </div>`;
       return;
     }
@@ -1106,9 +1238,53 @@ const wm = (() => {
       </div>`).join('');
   }
 
+  async function loadMessages() {
+    const list = document.getElementById('msgList');
+    list.innerHTML = '<div class="msg-loading">Loading</div>';
+    const res  = await fetch(`/webmail/api/messages?mailbox=${encodeURIComponent(currentMailbox)}&page=${currentPage}`);
+    const data = await res.json();
+    if (!data.success) {
+      list.innerHTML = `<div class="msg-empty" style="color:var(--accent-red)">${escHtml(data.error)}</div>`;
+      return;
+    }
+    renderMessageList(data.data.messages, data.data.total);
+  }
+
   function prevPage() { if (currentPage > 1) { currentPage--; loadMessages(); } }
   function nextPage() { if (currentPage < Math.ceil(totalMessages / perPage)) { currentPage++; loadMessages(); } }
 
+  // ── Search ────────────────────────────────────────────────────────────────
+  function toggleSearch() {
+    const row = document.getElementById('searchRow');
+    row.classList.toggle('open');
+    if (row.classList.contains('open')) document.getElementById('searchInput').focus();
+    else clearSearch();
+  }
+
+  async function doSearch() {
+    const q = document.getElementById('searchInput').value.trim();
+    if (!q) { clearSearch(); return; }
+    searchMode = true;
+    const list = document.getElementById('msgList');
+    list.innerHTML = '<div class="msg-loading">Searching</div>';
+    const res  = await fetch(`/webmail/api/search?mailbox=${encodeURIComponent(currentMailbox)}&q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (!data.success) {
+      list.innerHTML = `<div class="msg-empty" style="color:var(--accent-red)">${escHtml(data.error)}</div>`;
+      return;
+    }
+    renderMessageList(data.data.messages, data.data.total);
+  }
+
+  function clearSearch() {
+    searchMode = false;
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = '';
+    document.getElementById('searchRow').classList.remove('open');
+    loadMessages();
+  }
+
+  // ── Open message ──────────────────────────────────────────────────────────
   async function openMsg(uid) {
     currentUid = uid;
     document.getElementById('app').classList.add('reader-open');
@@ -1126,10 +1302,25 @@ const wm = (() => {
       hideReader();
       return;
     }
-    const msg  = data.data;
+    const msg = data.data;
     replyData      = msg;
-    currentMsgSeen = true; // we just marked it read on the server
+    currentMsgSeen = true;
     updateMarkReadBtn();
+
+    // BUG-06: update unread dot locally — no loadMessages() round-trip needed
+    document.querySelectorAll('.msg-item').forEach(el => {
+      const onclick = el.getAttribute('onclick') || '';
+      const match   = onclick.match(/openMsg\((\d+)\)/);
+      if (match && parseInt(match[1]) === uid) {
+        el.classList.remove('unread');
+        const dot = el.querySelector('.unread-dot');
+        if (dot) {
+          const spacer = document.createElement('div');
+          spacer.className = 'read-spacer';
+          dot.replaceWith(spacer);
+        }
+      }
+    });
 
     document.getElementById('readerSubject').textContent = msg.subject || '(no subject)';
     document.getElementById('readerMeta').textContent =
@@ -1148,26 +1339,85 @@ const wm = (() => {
       }
     }
 
+    // FEAT-01: Attachment chips
+    const attEl = document.getElementById('readerAttachments');
+    if (attEl) {
+      if (msg.attachments && msg.attachments.length > 0) {
+        attEl.innerHTML = msg.attachments.map(a => `
+          <a class="att-chip"
+             href="/webmail/api/messages/${uid}/attachments/${a.idx}?mailbox=${encodeURIComponent(currentMailbox)}"
+             download="${escAttr(a.filename)}" title="${escAttr(a.filename)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+            <span class="att-chip-name">${escHtml(a.filename)}</span>
+            ${a.size ? `<span class="att-chip-size">${fmtBytes(a.size)}</span>` : ''}
+          </a>`).join('');
+        attEl.style.display = '';
+      } else {
+        attEl.style.display = 'none';
+      }
+    }
+
+    // BUG-01: HTML email iframe — ResizeObserver-based sizing
     const bodyEl = document.getElementById('readerText');
     if (msg.html) {
-      bodyEl.innerHTML = `<iframe
-        sandbox="allow-same-origin"
-        srcdoc="${escAttr(msg.html)}"
-        onload="this.style.height=(this.contentDocument.body.scrollHeight+40)+'px'"
-        style="width:100%;border:none;border-radius:var(--radius-md);background:#fff;min-height:200px">
-      </iframe>`;
+      // Inject viewport meta + minimal reset so email renders at full email width
+      let emailHtml = msg.html;
+      if (!/<meta[^>]+viewport/i.test(emailHtml)) {
+        emailHtml = emailHtml.replace(
+          /<head(\s[^>]*)?>/i,
+          `<head$1><meta name="viewport" content="width=600"><style>body{margin:0;padding:8px;-webkit-text-size-adjust:100%}</style>`
+        );
+        if (!/<head/i.test(emailHtml)) {
+          emailHtml = `<head><meta name="viewport" content="width=600"><style>body{margin:0;padding:8px;-webkit-text-size-adjust:100%}</style></head>` + emailHtml;
+        }
+      }
+
+      bodyEl.innerHTML = '';
+      const frame = document.createElement('iframe');
+      // BUG-02: empty sandbox — no scripts, no same-origin access to parent
+      frame.sandbox = '';
+      frame.style.cssText = 'width:100%;border:none;border-radius:var(--radius-md);background:#fff;min-height:200px;display:block';
+
+      function syncHeight() {
+        try {
+          const h = frame.contentDocument?.documentElement?.scrollHeight ||
+                    frame.contentDocument?.body?.scrollHeight;
+          if (h && h > 0) frame.style.height = (h + 16) + 'px';
+        } catch { /* cross-origin guard */ }
+      }
+
+      frame.addEventListener('load', () => {
+        syncHeight();
+        try {
+          const ro = new ResizeObserver(syncHeight);
+          if (frame.contentDocument?.body) ro.observe(frame.contentDocument.body);
+          // Also re-sync after each image load
+          frame.contentDocument?.querySelectorAll('img').forEach(img => {
+            if (!img.complete) img.addEventListener('load', syncHeight, { once: true });
+          });
+        } catch { /* non-fatal */ }
+      });
+
+      frame.srcdoc = emailHtml;
+      bodyEl.appendChild(frame);
     } else {
       bodyEl.textContent = msg.text || '(empty message)';
     }
     showReader();
-    loadMessages(); // refresh to update unread dots
+    // BUG-06: do NOT call loadMessages() here — unread dot already updated above
   }
 
+  // ── Delete → Trash ────────────────────────────────────────────────────────
   async function deleteMsg() {
     if (!currentUid) return;
     const btn = document.getElementById('deleteBtn');
     btn.classList.add('loading'); btn.disabled = true;
-    const res  = await fetch(`/webmail/api/messages/${currentUid}?mailbox=${encodeURIComponent(currentMailbox)}`, { method: 'DELETE' });
+    const res  = await fetch(
+      `/webmail/api/messages/${currentUid}?mailbox=${encodeURIComponent(currentMailbox)}`,
+      { method: 'DELETE' }
+    );
     const data = await res.json();
     btn.classList.remove('loading'); btn.disabled = false;
     if (data.success) {
@@ -1175,32 +1425,70 @@ const wm = (() => {
       hideReader();
       document.getElementById('app').classList.remove('reader-open');
       loadMessages();
-      wmToast('success', 'Message deleted');
+      wmToast('success', 'Moved to Trash');
     } else {
       wmToast('error', data.error || 'Delete failed');
     }
   }
 
+  // FEAT-04: Move to folder ──────────────────────────────────────────────────
+  function toggleMovePopover(e) {
+    e.stopPropagation();
+    const pop = document.getElementById('moveFolderPopover');
+    if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+    pop.innerHTML = allFolders
+      .filter(m => m.path !== currentMailbox)
+      .map(m => `<div class="move-folder-item" onclick="wm.moveToFolder('${escAttr(m.path)}')">${escHtml(m.name)}</div>`)
+      .join('') || '<div class="move-folder-item" style="color:var(--text-muted)">No other folders</div>';
+    pop.classList.add('open');
+  }
+
+  async function moveToFolder(dest) {
+    document.getElementById('moveFolderPopover').classList.remove('open');
+    if (!currentUid) return;
+    const btn = document.getElementById('moveBtn');
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+    const res = await fetch(
+      `/webmail/api/messages/${currentUid}/move?mailbox=${encodeURIComponent(currentMailbox)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dest }) }
+    );
+    const data = await res.json();
+    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+    if (data.success) {
+      currentUid = null;
+      hideReader();
+      document.getElementById('app').classList.remove('reader-open');
+      loadMessages();
+      wmToast('success', `Moved to ${dest}`);
+    } else {
+      wmToast('error', data.error || 'Move failed');
+    }
+  }
+
   // ── Compose / Reply ───────────────────────────────────────────────────────
   function openCompose(opts = {}) {
-    // Reset draft state
     draftUid   = opts.draftUid || null;
     draftDirty = false;
 
-    // Populate fields
     document.getElementById('composeTo').value      = opts.to      || '';
     document.getElementById('composeSubject').value = opts.subject || '';
     document.getElementById('composeBody').value    = opts.body    || '';
     document.getElementById('composeCc').value      = opts.cc      || '';
     document.getElementById('composeBcc').value     = opts.bcc     || '';
 
-    // Show/hide CC/BCC row
     const ccRow = document.getElementById('ccBccRow');
     if (opts.cc || opts.bcc) ccRow.classList.add('open');
     else                     ccRow.classList.remove('open');
 
+    // Store threading headers in modal dataset for send()
+    const modal = document.getElementById('composeModal');
+    if (opts._inReplyTo)  modal.dataset.inReplyTo  = opts._inReplyTo;
+    else                  delete modal.dataset.inReplyTo;
+    if (opts._references) modal.dataset.references = opts._references;
+    else                  delete modal.dataset.references;
+
     setDraftStatus('');
-    document.getElementById('composeModal').classList.add('open');
+    modal.classList.add('open');
     startAutoSave();
 
     setTimeout(() => {
@@ -1227,22 +1515,39 @@ const wm = (() => {
     if (row.classList.contains('open')) document.getElementById('composeCc').focus();
   }
 
+  // BUG-05: Reply with threading headers + correct quote
   function reply() {
     if (!replyData) return;
+    const quoteBody = replyData.text
+      ? `\n\n--- Original message ---\nFrom: ${replyData.from}\n${replyData.text}`
+      : `\n\n--- Original message ---\n(HTML message)`;
+
+    const msgId   = replyData.messageId || '';
+    const newRefs = [replyData.references, msgId].filter(Boolean).join(' ');
+
     openCompose({
-      to:      replyData.from,
-      subject: replyData.subject?.startsWith('Re:') ? replyData.subject : 'Re: ' + (replyData.subject || ''),
-      body:    `\n\n--- Original message ---\nFrom: ${replyData.from}\n${replyData.text || ''}`,
+      to:          replyData.from,
+      subject:     replyData.subject?.startsWith('Re:') ? replyData.subject : 'Re: ' + (replyData.subject || ''),
+      body:        quoteBody,
+      _inReplyTo:  msgId,
+      _references: newRefs,
     });
   }
 
+  // BUG-04: multi-recipient To (comma-separated)
   async function send() {
-    const to      = document.getElementById('composeTo').value.trim();
+    const toRaw   = document.getElementById('composeTo').value.trim();
     const subject = document.getElementById('composeSubject').value.trim();
     const text    = document.getElementById('composeBody').value;
     const cc      = document.getElementById('composeCc').value.trim()  || undefined;
     const bcc     = document.getElementById('composeBcc').value.trim() || undefined;
-    if (!to || !subject) { wmToast('error', 'To and Subject are required'); return; }
+    if (!toRaw)   { wmToast('error', 'To address is required'); return; }
+    if (!subject) { wmToast('error', 'Subject is required');    return; }
+
+    const toAddresses = toRaw.split(',').map(s => s.trim()).filter(Boolean).join(', ');
+    const modal       = document.getElementById('composeModal');
+    const inReplyTo   = modal.dataset.inReplyTo  || undefined;
+    const references  = modal.dataset.references || undefined;
 
     const btn = document.getElementById('sendBtn');
     btn.classList.add('loading'); btn.disabled = true;
@@ -1251,7 +1556,7 @@ const wm = (() => {
     const res  = await fetch('/webmail/api/send', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ to, subject, text, cc, bcc, draftUid }),
+      body:    JSON.stringify({ to: toAddresses, subject, text, cc, bcc, draftUid, inReplyTo, references }),
     });
     const data = await res.json();
     btn.classList.remove('loading'); btn.disabled = false;
@@ -1261,7 +1566,6 @@ const wm = (() => {
       draftDirty = false;
       closeCompose();
       wmToast('success', 'Message sent');
-      // Refresh list if we're viewing Sent folder
       if (currentMailbox.toLowerCase().includes('sent')) loadMessages();
     } else {
       startAutoSave();
@@ -1279,7 +1583,6 @@ const wm = (() => {
 
   function startAutoSave() {
     stopAutoSave();
-    // Wire up input listeners
     ['composeTo', 'composeSubject', 'composeBody', 'composeCc', 'composeBcc'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.removeEventListener('input', markDirty); el.addEventListener('input', markDirty); }
@@ -1294,9 +1597,7 @@ const wm = (() => {
     draftTimer    = null;
   }
 
-  async function saveDraft(showToast = true) {
-    await doSaveDraft(showToast);
-  }
+  async function saveDraft(showToast = true) { await doSaveDraft(showToast); }
 
   async function doSaveDraft(showToast) {
     const to      = document.getElementById('composeTo').value.trim();
@@ -1361,7 +1662,10 @@ const wm = (() => {
         currentMsgSeen = makeSeen;
         updateMarkReadBtn();
         wmToast('success', makeSeen ? 'Marked as read' : 'Marked as unread');
-        loadMessages();
+        // Update the dot locally without full list reload
+        document.querySelectorAll('.msg-item.active').forEach(el => {
+          el.classList.toggle('unread', !makeSeen);
+        });
       } else {
         wmToast('error', data.error || 'Failed');
       }
@@ -1381,6 +1685,8 @@ const wm = (() => {
   function showReaderLoading() {
     document.getElementById('emptyReader').style.display    = 'none';
     document.getElementById('readerContent').style.display  = 'flex';
+    const attEl = document.getElementById('readerAttachments');
+    if (attEl) attEl.style.display = 'none';
     document.getElementById('readerText').innerHTML =
       '<div class="msg-loading" style="margin-top:var(--space-8)">Loading</div>';
   }
@@ -1397,7 +1703,8 @@ const wm = (() => {
     init, login, logout,
     openSidebar, closeSidebar, closeReader,
     switchFolder, loadMessages, prevPage, nextPage,
-    openMsg, deleteMsg,
+    toggleSearch, doSearch, clearSearch,
+    openMsg, deleteMsg, moveToFolder, toggleMovePopover,
     reply, openCompose, closeCompose, composeBackdrop, send,
     saveDraft, toggleCcBcc, toggleRead,
     showShortcuts, hideShortcuts,
@@ -1427,17 +1734,17 @@ function fmtDateFull(d) {
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  // Always handle Escape
   if (e.key === 'Escape') {
-    if (document.getElementById('kbdHelp').classList.contains('open')) { wm.hideShortcuts(); return; }
-    if (document.getElementById('composeModal').classList.contains('open')) { wm.closeCompose(); return; }
-    if (document.body.classList.contains('sidebar-open')) { wm.closeSidebar(); return; }
+    if (document.getElementById('kbdHelp').classList.contains('open'))     { wm.hideShortcuts(); return; }
+    if (document.getElementById('composeModal').classList.contains('open')){ wm.closeCompose();  return; }
+    const pop = document.getElementById('moveFolderPopover');
+    if (pop?.classList.contains('open')) { pop.classList.remove('open'); return; }
+    if (document.getElementById('searchRow').classList.contains('open'))   { wm.clearSearch();   return; }
+    if (document.body.classList.contains('sidebar-open'))                  { wm.closeSidebar();  return; }
     return;
   }
-  // Skip when typing in any input/textarea
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
-  // Skip if modifier keys held
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   switch (e.key) {
@@ -1445,7 +1752,16 @@ document.addEventListener('keydown', e => {
     case 'r': e.preventDefault(); wm.reply();         break;
     case '#': e.preventDefault(); wm.deleteMsg();     break;
     case 'u': e.preventDefault(); wm.toggleRead();    break;
+    case '/': e.preventDefault(); wm.toggleSearch();  break;
     case '?': e.preventDefault(); wm.showShortcuts(); break;
+  }
+});
+
+// Close move popover on outside click
+document.addEventListener('click', e => {
+  const pop = document.getElementById('moveFolderPopover');
+  if (pop?.classList.contains('open') && !pop.closest('.move-popover-wrap')?.contains(e.target)) {
+    pop.classList.remove('open');
   }
 });
 
