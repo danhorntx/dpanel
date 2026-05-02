@@ -1,24 +1,27 @@
 // ── DAnalytics frontend module ────────────────────────────────────────────────
-// Vanilla JS IIFE, consistent with every other DPanel module.
-// Requires: Chart.js 4 loaded globally, window.api wrapper, window.toast.
 window.analyticsModule = (() => {
   'use strict';
 
   // ── State ──────────────────────────────────────────────────────────────────
-  let domain      = 'all';
-  let granularity = 'daily';
-  let trafficType = 'real';
-  let fromDate    = '';
-  let toDate      = '';
-  let geoLevel    = 'country';
-  let geoFilter   = {};
-  let geoCache    = null;
+  let domain         = 'all';
+  let granularity    = 'daily';
+  let trafficType    = 'real';
+  let fromDate       = '';
+  let toDate         = '';
+  let tz             = 'America/Chicago';
+  let geoLevel       = 'country';
+  let geoFilter      = {};
+  let geoCache       = null;
   let realtimeTimer  = null;
   let debounceTimer  = null;
   let timeChart      = null;
   let sourceChart    = null;
+  let comparisonMode = false;
+  let compPrevData   = null;
   let initialized    = false;
   let loading        = false;
+  let activeTab      = 'overview'; // 'overview' | 'errors' | 'reports'
+  let drilldownUrl   = null;
 
   // ── Design-system color tokens ─────────────────────────────────────────────
   const C = {
@@ -40,7 +43,24 @@ window.analyticsModule = (() => {
   const BROWSER_COLORS = { 'Chrome': C.blue, 'Firefox': C.amber, 'Safari': C.teal, 'Edge': C.purple, 'Opera': C.red, 'Samsung': C.pink, 'Other': C.muted, 'Chromium': C.muted, 'IE': C.muted, 'curl': C.muted };
   const OS_COLORS      = { 'Windows': C.blue, 'macOS': C.teal, 'Linux': C.amber, 'Android': C.green, 'iOS': C.purple, 'ChromeOS': C.muted, 'Other': C.muted };
 
-  // ── Country code → full name (top ~80 countries) ──────────────────────────
+  // Common IANA timezone labels for dropdown
+  const TIMEZONES = [
+    { value: 'America/New_York',    label: 'Eastern (ET)' },
+    { value: 'America/Chicago',     label: 'Central (CT)' },
+    { value: 'America/Denver',      label: 'Mountain (MT)' },
+    { value: 'America/Phoenix',     label: 'Arizona (MT no DST)' },
+    { value: 'America/Los_Angeles', label: 'Pacific (PT)' },
+    { value: 'America/Anchorage',   label: 'Alaska (AKT)' },
+    { value: 'Pacific/Honolulu',    label: 'Hawaii (HST)' },
+    { value: 'Europe/London',       label: 'London (GMT/BST)' },
+    { value: 'Europe/Paris',        label: 'Central Europe (CET)' },
+    { value: 'Asia/Tokyo',          label: 'Tokyo (JST)' },
+    { value: 'Asia/Shanghai',       label: 'China (CST)' },
+    { value: 'Australia/Sydney',    label: 'Sydney (AEDT)' },
+    { value: 'UTC',                 label: 'UTC' },
+  ];
+
+  // ── Country helpers ────────────────────────────────────────────────────────
   const COUNTRY_NAMES = {
     US:'United States', GB:'United Kingdom', CA:'Canada', AU:'Australia', DE:'Germany',
     FR:'France', NL:'Netherlands', IN:'India', BR:'Brazil', MX:'Mexico', JP:'Japan',
@@ -67,18 +87,6 @@ window.analyticsModule = (() => {
     XX:'Unknown',
   };
 
-  function countryName(code) {
-    if (!code) return 'Unknown';
-    return COUNTRY_NAMES[code.toUpperCase()] || code.toUpperCase();
-  }
-
-  function countryFlag(code) {
-    if (!code || code.length !== 2) return '';
-    const offset = 0x1F1E6 - 65;
-    return String.fromCodePoint(code.toUpperCase().charCodeAt(0) + offset) +
-           String.fromCodePoint(code.toUpperCase().charCodeAt(1) + offset);
-  }
-
   const US_STATES = {
     TX:'Texas',CA:'California',NY:'New York',FL:'Florida',IL:'Illinois',PA:'Pennsylvania',
     OH:'Ohio',GA:'Georgia',NC:'North Carolina',MI:'Michigan',WA:'Washington',AZ:'Arizona',
@@ -90,6 +98,14 @@ window.analyticsModule = (() => {
     SD:'South Dakota',ND:'North Dakota',AK:'Alaska',VT:'Vermont',WY:'Wyoming',DC:'D.C.',
     VA:'Virginia',NJ:'New Jersey',
   };
+
+  function countryName(code) { return !code ? 'Unknown' : (COUNTRY_NAMES[code.toUpperCase()] || code.toUpperCase()); }
+  function countryFlag(code) {
+    if (!code || code.length !== 2) return '';
+    const offset = 0x1F1E6 - 65;
+    return String.fromCodePoint(code.toUpperCase().charCodeAt(0) + offset) +
+           String.fromCodePoint(code.toUpperCase().charCodeAt(1) + offset);
+  }
 
   // ── Shared Chart.js tooltip defaults ──────────────────────────────────────
   const TOOLTIP = {
@@ -106,28 +122,59 @@ window.analyticsModule = (() => {
   };
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  function init() {
+  async function init() {
     if (initialized) { load(); return; }
     initialized = true;
 
-    setPreset(30);
+    // Load user timezone preference from server
+    try {
+      const meResp = await api.get('/api/settings/me');
+      if (meResp?.success && meResp.data?.timezone) {
+        tz = meResp.data.timezone;
+      }
+    } catch (_) {
+      tz = localStorage.getItem('analyticsTimezone') || 'America/Chicago';
+    }
 
+    // Populate timezone dropdown
+    const tzSel = document.getElementById('analyticsTimezoneSelect');
+    if (tzSel) {
+      tzSel.innerHTML = TIMEZONES.map(t =>
+        `<option value="${t.value}"${t.value === tz ? ' selected' : ''}>${t.label}</option>`
+      ).join('') + `<option value="${tz}"${!TIMEZONES.find(t => t.value === tz) ? ' selected' : ''}>Custom: ${tz}</option>`;
+      tzSel.addEventListener('change', async () => {
+        tz = tzSel.value;
+        localStorage.setItem('analyticsTimezone', tz);
+        try { await api.patch('/api/settings/timezone', { timezone: tz }); } catch (_) {}
+        load();
+      });
+    }
+
+    setPreset(30);
+    bindControlEvents();
+    loadDomains();
+    startRealtime();
+    loadHealthStatus();
+    load();
+  }
+
+  function bindControlEvents() {
     document.querySelectorAll('.analytics-preset').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.analytics-preset').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const days = btn.dataset.days;
         if (days === 'today') {
-          const today = new Date().toISOString().slice(0, 10);
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
           fromDate = toDate = today;
           document.getElementById('analyticsFrom').value = today;
           document.getElementById('analyticsTo').value   = today;
-          // Auto-switch to hourly for single-day view
           setGranularity('hourly');
         } else if (days === 'ytd') {
           const now = new Date();
-          fromDate = `${now.getUTCFullYear()}-01-01`;
-          toDate   = now.toISOString().slice(0, 10);
+          const year = now.toLocaleDateString('en-CA', { timeZone: tz, year: 'numeric' }).slice(0, 4);
+          fromDate = `${year}-01-01`;
+          toDate   = now.toLocaleDateString('en-CA', { timeZone: tz });
           document.getElementById('analyticsFrom').value = fromDate;
           document.getElementById('analyticsTo').value   = toDate;
           setGranularity('daily');
@@ -171,9 +218,21 @@ window.analyticsModule = (() => {
       });
     });
 
-    loadDomains();
-    startRealtime();
-    load();
+    // Tab buttons
+    document.querySelectorAll('.analytics-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchTab(btn.dataset.tab);
+      });
+    });
+
+    // Comparison mode toggle
+    const compToggle = document.getElementById('analyticsCompareToggle');
+    if (compToggle) {
+      compToggle.addEventListener('change', () => {
+        comparisonMode = compToggle.checked;
+        load();
+      });
+    }
   }
 
   function setGranularity(gran) {
@@ -184,14 +243,25 @@ window.analyticsModule = (() => {
   }
 
   function setPreset(days) {
-    const to   = new Date();
-    const from = new Date(to.getTime() - days * 86400000);
-    fromDate = from.toISOString().slice(0, 10);
-    toDate   = to.toISOString().slice(0, 10);
+    const toD  = new Date();
+    const from = new Date(toD.getTime() - days * 86400000);
+    // Format in user's timezone
+    fromDate = from.toLocaleDateString('en-CA', { timeZone: tz });
+    toDate   = toD.toLocaleDateString('en-CA', { timeZone: tz });
     const fEl = document.getElementById('analyticsFrom');
     const tEl = document.getElementById('analyticsTo');
     if (fEl) fEl.value = fromDate;
     if (tEl) tEl.value = toDate;
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.analytics-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.analytics-tab-content').forEach(el => {
+      el.style.display = el.dataset.tab === tab ? '' : 'none';
+    });
+    if (tab === 'errors') loadErrors();
+    if (tab === 'reports') loadReports();
   }
 
   async function loadDomains() {
@@ -213,20 +283,41 @@ window.analyticsModule = (() => {
     loading = true;
     showSkeletons();
 
-    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, granularity, trafficType });
-    const [statsResp, geoResp] = await Promise.all([
-      api.get('/api/analytics/stats?' + params),
-      api.get('/api/analytics/geo?' + new URLSearchParams({ domain, from: fromDate, to: toDate, trafficType })),
-    ]);
+    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, granularity, trafficType, tz });
 
-    loading = false;
+    try {
+      if (comparisonMode) {
+        const [compResp, geoResp] = await Promise.all([
+          api.get('/api/analytics/comparison?' + params),
+          api.get('/api/analytics/geo?' + new URLSearchParams({ domain, from: fromDate, to: toDate, trafficType, tz })),
+        ]);
+        loading = false;
+        if (!compResp?.success) { showErrorState(compResp?.error); return; }
+        geoCache = geoResp?.success ? geoResp.data : null;
+        compPrevData = compResp.data.previous;
+        render(compResp.data.current, compResp.data.previous);
+        renderGeo();
+        loadTrafficBreakdown();
+      } else {
+        const [statsResp, geoResp] = await Promise.all([
+          api.get('/api/analytics/stats?' + params),
+          api.get('/api/analytics/geo?' + new URLSearchParams({ domain, from: fromDate, to: toDate, trafficType, tz })),
+        ]);
+        loading = false;
+        if (!statsResp?.success) { showErrorState(statsResp?.error); return; }
+        geoCache = geoResp?.success ? geoResp.data : null;
+        compPrevData = null;
+        render(statsResp.data, null);
+        renderGeo();
+        loadTrafficBreakdown();
+      }
+    } catch (err) {
+      loading = false;
+      showErrorState(err.message);
+    }
 
-    if (!statsResp?.success) { showErrorState(statsResp?.error); return; }
-
-    geoCache = geoResp?.success ? geoResp.data : null;
-    render(statsResp.data);
-    renderGeo();
-    loadTrafficBreakdown();
+    // Reload errors tab if active
+    if (activeTab === 'errors') loadErrors();
   }
 
   // ── Traffic breakdown ───────────────────────────────────────────────────────
@@ -234,15 +325,15 @@ window.analyticsModule = (() => {
     const el = document.getElementById('analyticsTrafficBreakdown');
     if (!el) return;
 
-    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'all' });
+    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'all', tz });
     const allData = await api.get('/api/analytics/stats?' + params);
     if (!allData?.success) { el.innerHTML = emptyState('No traffic classification data.'); return; }
 
     const allPV = allData.data?.summary?.pageviews || 0;
 
     const [realResp, botsResp] = await Promise.all([
-      api.get('/api/analytics/stats?' + new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'real' })),
-      api.get('/api/analytics/stats?' + new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'bots' })),
+      api.get('/api/analytics/stats?' + new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'real', tz })),
+      api.get('/api/analytics/stats?' + new URLSearchParams({ domain, from: fromDate, to: toDate, granularity: 'daily', trafficType: 'bots', tz })),
     ]);
 
     const realPV = realResp?.data?.summary?.pageviews || 0;
@@ -273,24 +364,241 @@ window.analyticsModule = (() => {
           </div>`).join('')}
       </div>
       <p style="font-size:.72rem;color:var(--text-muted);margin-top:12px">
-        ${fmtNum(allPV)} total requests processed · Real user rate: <strong style="color:${C.green}">${pct(realPV, allPV)}%</strong>
+        ${fmtNum(allPV)} total requests · Real user rate: <strong style="color:${C.green}">${pct(realPV, allPV)}%</strong>
       </p>`;
   }
 
+  // ── Errors tab ──────────────────────────────────────────────────────────────
+  async function loadErrors() {
+    const el = document.getElementById('analyticsErrorsContent');
+    if (!el) return;
+    el.innerHTML = `<div class="skeleton" style="height:200px;border-radius:var(--radius-md)"></div>`;
+
+    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, tz });
+    const resp = await api.get('/api/analytics/errors?' + params);
+    if (!resp?.success) { el.innerHTML = emptyState('Failed to load error data.'); return; }
+
+    const { statusBreakdown, topErrorUrls, errorRate, errorRequests, totalRequests } = resp.data;
+
+    if (!errorRequests) {
+      el.innerHTML = `<div class="empty-state" style="padding:var(--space-6)">
+        <p class="text-sm" style="color:${C.green}">✓ No HTTP errors in this date range.</p>
+      </div>`;
+      return;
+    }
+
+    const statusColors = { 404: C.amber, 403: C.red, 500: C.red, 503: C.red };
+    const getStatusColor = s => {
+      if (s >= 500) return C.red;
+      if (s >= 400) return C.amber;
+      return C.muted;
+    };
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:var(--space-4)">
+        <div class="card-outer" style="flex:0 0 auto;padding:0">
+          <div class="card-inner" style="padding:16px 20px;text-align:center">
+            <div style="font-size:1.75rem;font-weight:700;color:${errorRate > 5 ? C.red : C.amber};letter-spacing:-0.04em">${errorRate}%</div>
+            <div style="font-size:.75rem;color:var(--text-muted)">Error Rate</div>
+          </div>
+        </div>
+        <div class="card-outer" style="flex:0 0 auto;padding:0">
+          <div class="card-inner" style="padding:16px 20px;text-align:center">
+            <div style="font-size:1.75rem;font-weight:700;color:${C.amber};letter-spacing:-0.04em">${fmtNum(errorRequests)}</div>
+            <div style="font-size:.75rem;color:var(--text-muted)">Error Requests</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="a-grid-2">
+        <!-- Status codes -->
+        <div class="card-outer"><div class="card-inner">
+          <h4 style="margin-bottom:var(--space-3)">By Status Code</h4>
+          ${statusBreakdown.slice(0, 10).map(r => `
+            <div class="a-bar-row" style="grid-template-columns:52px 1fr 80px 52px">
+              <div style="font-family:var(--font-mono);font-size:.8rem;font-weight:600;color:${getStatusColor(r.status)}">${r.status}</div>
+              <div class="a-bar-track">
+                <div class="a-bar-fill" style="width:${pct(r.count, statusBreakdown[0].count)}%;background:${getStatusColor(r.status)}"></div>
+              </div>
+              <div class="a-bar-pct">${pct(r.count, errorRequests)}%</div>
+              <div class="a-bar-count">${fmtNum(r.count)}</div>
+            </div>`).join('')}
+        </div></div>
+
+        <!-- Top error URLs -->
+        <div class="card-outer"><div class="card-inner">
+          <h4 style="margin-bottom:var(--space-3)">Top Error URLs</h4>
+          ${topErrorUrls.slice(0, 10).map((r, i) => `
+            <div class="a-bar-row">
+              <div class="a-bar-rank">${i + 1}</div>
+              <div class="a-bar-label" title="${esc(r.url)}" style="display:flex;align-items:center;gap:6px">
+                <span class="badge" style="font-size:.62rem;padding:1px 5px;background:${getStatusColor(r.status)}22;color:${getStatusColor(r.status)}">${r.status}</span>
+                ${esc(fmtUrl(r.url))}
+              </div>
+              <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, topErrorUrls[0]?.count || 1)}%;background:${getStatusColor(r.status)}"></div></div>
+              <div class="a-bar-pct">${pct(r.count, errorRequests)}%</div>
+              <div class="a-bar-count">${fmtNum(r.count)}</div>
+            </div>`).join('')}
+        </div></div>
+      </div>`;
+  }
+
+  // ── Ingestion health status ─────────────────────────────────────────────────
+  async function loadHealthStatus() {
+    const el = document.getElementById('analyticsHealthStatus');
+    if (!el) return;
+
+    const resp = await api.get('/api/analytics/health');
+    if (!resp?.success) { el.innerHTML = ''; return; }
+
+    const { lastCursorUpdate, domains } = resp.data;
+    if (!lastCursorUpdate) { el.innerHTML = ''; return; }
+
+    const lastUpdate = new Date(lastCursorUpdate);
+    const minutesAgo = Math.round((Date.now() - lastUpdate.getTime()) / 60000);
+    const isStale    = minutesAgo > 5;
+    const color      = isStale ? C.amber : C.green;
+
+    el.innerHTML = `
+      <span title="Last log ingestion: ${lastUpdate.toLocaleString()}"
+            style="font-size:.72rem;color:${color};display:inline-flex;align-items:center;gap:5px">
+        <span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>
+        ${isStale ? `Stale — last updated ${minutesAgo}m ago` : `Live — updated ${minutesAgo < 1 ? '< 1' : minutesAgo}m ago`}
+      </span>`;
+  }
+
+  // ── Reports tab ─────────────────────────────────────────────────────────────
+  async function loadReports() {
+    const el = document.getElementById('analyticsReportsContent');
+    if (!el) return;
+
+    const resp = await api.get('/api/analytics/reports');
+    if (!resp?.success) { el.innerHTML = emptyState('Failed to load reports.'); return; }
+
+    const subs = resp.data;
+
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+        <div>
+          <h4 style="margin:0 0 4px">Email Report Subscriptions</h4>
+          <p style="font-size:.75rem;color:var(--text-muted)">Automated analytics digests delivered to any email address</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="window.analyticsModule.openNewReportModal()">
+          + New Subscription
+        </button>
+      </div>
+
+      ${subs.length === 0 ? emptyState('No report subscriptions yet. Create one to start receiving email digests.') : `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${subs.map(sub => `
+            <div class="card-outer" style="padding:0">
+              <div class="card-inner" style="padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <div style="flex:1;min-width:200px">
+                  <div style="font-weight:600;color:var(--text-primary);margin-bottom:3px">${esc(sub.label)}</div>
+                  <div style="font-size:.75rem;color:var(--text-muted)">
+                    To: <span style="color:var(--text-secondary)">${esc(sub.recipient_email)}</span>
+                    &nbsp;·&nbsp;
+                    <span style="text-transform:capitalize">${sub.frequency}</span>
+                    &nbsp;·&nbsp;
+                    Domains: <span style="font-family:var(--font-mono)">${sub.domains.includes('*') ? 'All' : sub.domains.join(', ')}</span>
+                  </div>
+                  ${sub.last_sent ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:2px">Last sent: ${new Date(sub.last_sent).toLocaleString()}</div>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="badge ${sub.active ? 'badge-green' : ''}" style="${!sub.active ? 'background:rgba(255,255,255,.06);color:var(--text-muted)' : ''}">
+                    ${sub.active ? 'Active' : 'Paused'}
+                  </span>
+                  <button class="btn btn-xs btn-ghost" onclick="window.analyticsModule.sendReportNow(${sub.id})" title="Send now">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2L2 8l5 2 2 5 5-13z"/></svg>
+                    Send Now
+                  </button>
+                  <button class="btn btn-xs btn-ghost" onclick="window.analyticsModule.toggleReport(${sub.id}, ${sub.active})" title="${sub.active ? 'Pause' : 'Resume'}">
+                    ${sub.active ? 'Pause' : 'Resume'}
+                  </button>
+                  <button class="btn btn-xs btn-ghost" style="color:${C.red}" onclick="window.analyticsModule.deleteReport(${sub.id})" title="Delete">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>
+      `}`;
+  }
+
+  function openNewReportModal() {
+    const modal = document.getElementById('modalNewReport');
+    if (modal) modal.classList.add('open');
+  }
+
+  async function saveNewReport() {
+    const label    = document.getElementById('newReportLabel')?.value.trim();
+    const email    = document.getElementById('newReportEmail')?.value.trim();
+    const freq     = document.getElementById('newReportFreq')?.value || 'weekly';
+    const domainEl = document.getElementById('newReportDomains')?.value.trim();
+
+    if (!label || !email) { toast('Label and email are required', 'error'); return; }
+
+    let domains = ['*'];
+    if (domainEl && domainEl !== '*' && domainEl !== '') {
+      domains = domainEl.split(',').map(d => d.trim()).filter(Boolean);
+    }
+
+    const resp = await api.post('/api/analytics/reports', { label, recipient_email: email, frequency: freq, domains });
+    if (resp?.success) {
+      toast('Report subscription created');
+      document.getElementById('modalNewReport')?.classList.remove('open');
+      loadReports();
+    } else {
+      toast(resp?.error || 'Failed to create subscription', 'error');
+    }
+  }
+
+  async function sendReportNow(id) {
+    toast('Sending report...');
+    const resp = await api.post(`/api/analytics/reports/${id}/send`, {});
+    if (resp?.success) toast('Report sent successfully');
+    else toast(resp?.error || 'Failed to send report', 'error');
+  }
+
+  async function toggleReport(id, currentActive) {
+    const resp = await api.put(`/api/analytics/reports/${id}`, { active: currentActive ? 0 : 1 });
+    if (resp?.success) loadReports();
+    else toast(resp?.error || 'Failed to update', 'error');
+  }
+
+  async function deleteReport(id) {
+    if (!confirm('Delete this report subscription?')) return;
+    const resp = await api.delete(`/api/analytics/reports/${id}`);
+    if (resp?.success) { toast('Deleted'); loadReports(); }
+    else toast(resp?.error || 'Failed to delete', 'error');
+  }
+
   // ── Master render ───────────────────────────────────────────────────────────
-  function render(d) {
-    renderSummaryCards(d.summary);
-    renderTimeSeries(d.timeSeries, d.summary);
+  function render(d, prev) {
+    renderSummaryCards(d.summary, prev?.summary);
+    renderTimeSeries(d.timeSeries, d.summary, prev?.timeSeries);
     renderTopPages(d.topPages);
     renderSources(d.sources);
     renderBreakdown('analyticsDevices',  d.devices,          DEVICE_COLORS);
     renderBreakdown('analyticsBrowsers', d.browsers,         BROWSER_COLORS);
     renderBreakdown('analyticsOS',       d.operatingSystems, OS_COLORS);
     renderReferrers(d.referrers);
+
+    // Show data source badge
+    const badge = document.getElementById('analyticsDataSource');
+    if (badge) {
+      if (d.fromRollup) {
+        badge.innerHTML = `<span style="font-size:.7rem;color:${C.teal};opacity:.7">rollup data</span>`;
+      } else if (d.fromDB) {
+        badge.innerHTML = '';
+      } else {
+        badge.innerHTML = `<span style="font-size:.7rem;color:${C.amber};opacity:.7">log fallback</span>`;
+      }
+    }
   }
 
   // ── Summary cards ───────────────────────────────────────────────────────────
-  function renderSummaryCards(s) {
+  function renderSummaryCards(s, prev) {
     const el = document.getElementById('analyticsStats');
     if (!el) return;
 
@@ -300,12 +608,21 @@ window.analyticsModule = (() => {
       all:  `<span class="a-type-badge" style="background:rgba(255,255,255,.08);color:var(--text-muted)">All Traffic</span>`,
     }[trafficType] || '';
 
+    function delta(cur, p) {
+      if (!p || !comparisonMode) return '';
+      const d = cur - p;
+      const pct = p > 0 ? Math.round((d / p) * 100) : 0;
+      const color = d >= 0 ? C.green : C.red;
+      const arrow = d >= 0 ? '▲' : '▼';
+      return `<div style="font-size:.7rem;color:${color};margin-top:4px">${arrow} ${Math.abs(pct)}% vs prev period</div>`;
+    }
+
     const cards = [
-      { label: 'Page Views',      value: fmtNum(s.pageviews),           sub: 'total requests',           color: C.blue,                                       icon: iconEye(),     badge: typeBadge },
-      { label: 'Unique Visitors', value: fmtNum(s.uniqueVisitors),      sub: 'distinct IPs',              color: C.green,                                      icon: iconUsers(),   badge: '' },
-      { label: 'Sessions',        value: fmtNum(s.sessions),            sub: '30-min idle = new session', color: C.amber,                                      icon: iconZap(),     badge: '' },
-      { label: 'Bounce Rate',     value: s.bounceRate + '%',            sub: 'single-page sessions',      color: s.bounceRate > 70 ? C.red : C.muted,          icon: iconPercent(), badge: '' },
-      { label: 'Avg Duration',    value: fmtDuration(s.avgDurationSec), sub: 'engaged sessions only',     color: C.teal,                                       icon: iconClock(),   badge: '' },
+      { label: 'Page Views',      value: fmtNum(s.pageviews),           sub: 'total requests',            color: C.blue,                                       icon: iconEye(),     badge: typeBadge, delta: delta(s.pageviews, prev?.pageviews) },
+      { label: 'Unique Visitors', value: fmtNum(s.uniqueVisitors),      sub: 'distinct fingerprints',      color: C.green,                                      icon: iconUsers(),   badge: '',        delta: delta(s.uniqueVisitors, prev?.uniqueVisitors) },
+      { label: 'Sessions',        value: fmtNum(s.sessions),            sub: '30-min idle = new session',  color: C.amber,                                      icon: iconZap(),     badge: '',        delta: delta(s.sessions, prev?.sessions) },
+      { label: 'Bounce Rate',     value: s.bounceRate + '%',            sub: 'single-page sessions',       color: s.bounceRate > 70 ? C.red : C.muted,          icon: iconPercent(), badge: '',        delta: delta(prev?.bounceRate, s.bounceRate) },
+      { label: 'Avg Duration',    value: fmtDuration(s.avgDurationSec), sub: 'engaged sessions only',      color: C.teal,                                       icon: iconClock(),   badge: '',        delta: delta(s.avgDurationSec, prev?.avgDurationSec) },
     ];
 
     el.innerHTML = cards.map(c => `
@@ -318,26 +635,24 @@ window.analyticsModule = (() => {
           <div class="a-stat-value">${c.value}</div>
           <div class="a-stat-label">${c.label}</div>
           <div class="a-stat-sub">${c.sub}</div>
+          ${c.delta}
         </div>
       </div>
     `).join('');
   }
 
-  // ── Time-series area chart ─────────────────────────────────────────────────
-  function renderTimeSeries(series, summary) {
+  // ── Time-series area chart (with optional comparison line) ──────────────────
+  function renderTimeSeries(series, summary, prevSeries) {
     const canvas = document.getElementById('analyticsTimeChart');
     if (!canvas) return;
     if (timeChart) { timeChart.destroy(); timeChart = null; }
 
-    // Filter out zero-only tail if viewing today with sparse data
     const nonZeroSeries = series.filter((p, i, arr) => {
       if (p.count > 0) return true;
-      // Keep zeros between non-zero points
       const hasDataBefore = arr.slice(0, i).some(x => x.count > 0);
       const hasDataAfter  = arr.slice(i + 1).some(x => x.count > 0);
       return hasDataBefore && hasDataAfter;
     });
-
     const displaySeries = nonZeroSeries.length > 1 ? nonZeroSeries : series;
 
     const chartColor = { bots: C.red, all: C.purple }[trafficType] || C.blue;
@@ -352,44 +667,57 @@ window.analyticsModule = (() => {
     grad.addColorStop(0.6, hexAlpha(chartColor, 0.08));
     grad.addColorStop(1,   hexAlpha(chartColor, 0.00));
 
-    // Update chart header total
     const totalEl = document.getElementById('analyticsChartTotal');
-    if (totalEl) {
-      totalEl.textContent = `${fmtNum(totalPV)} page views`;
+    if (totalEl) totalEl.textContent = `${fmtNum(totalPV)} page views${comparisonMode ? ' (current period)' : ''}`;
+
+    const datasets = [{
+      label:               'Page Views',
+      data:                counts,
+      borderColor:         chartColor,
+      backgroundColor:     grad,
+      borderWidth:         2.5,
+      pointRadius:         counts.length > 48 ? 0 : counts.length > 14 ? 2 : 4,
+      pointHoverRadius:    6,
+      pointBackgroundColor: chartColor,
+      pointBorderColor:    '#141820',
+      pointBorderWidth:    2,
+      fill:                true,
+      tension:             0.4,
+      spanGaps:            true,
+    }];
+
+    // Add previous period line when in comparison mode
+    if (comparisonMode && prevSeries && prevSeries.length) {
+      const prevCounts = prevSeries.slice(0, displaySeries.length).map(p => p.count);
+      datasets.push({
+        label:               'Previous Period',
+        data:                prevCounts,
+        borderColor:         C.muted,
+        backgroundColor:     'transparent',
+        borderWidth:         1.5,
+        borderDash:          [4, 4],
+        pointRadius:         0,
+        pointHoverRadius:    4,
+        fill:                false,
+        tension:             0.4,
+        spanGaps:            true,
+      });
     }
 
     timeChart = new Chart(canvas, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label:               'Page Views',
-          data:                counts,
-          borderColor:         chartColor,
-          backgroundColor:     grad,
-          borderWidth:         2.5,
-          pointRadius:         counts.length > 48 ? 0 : counts.length > 14 ? 2 : 4,
-          pointHoverRadius:    6,
-          pointBackgroundColor: chartColor,
-          pointBorderColor:    '#141820',
-          pointBorderWidth:    2,
-          fill:                true,
-          tension:             0.4,
-          spanGaps:            true,
-        }],
-      },
+      data: { labels, datasets },
       options: {
         responsive:          true,
         maintainAspectRatio: false,
         interaction:         { mode: 'index', intersect: false },
         animation:           { duration: 500, easing: 'easeOutQuart' },
         plugins: {
-          legend: { display: false },
+          legend: { display: comparisonMode, labels: { color: C.text, font: { family: "'DM Sans',sans-serif", size: 11 } } },
           tooltip: {
             ...TOOLTIP,
             callbacks: {
               title: items => {
-                // Full date in tooltip
                 const iso = displaySeries[items[0].dataIndex]?.date;
                 if (!iso) return items[0].label;
                 const d = new Date(iso);
@@ -398,40 +726,19 @@ window.analyticsModule = (() => {
                 }
                 return d.toLocaleDateString('en-US', { weekday:'short', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' });
               },
-              label: item => {
-                const v = item.raw;
-                return `  ${fmtNum(v)} ${v === 1 ? 'page view' : 'page views'}`;
-              },
-              afterLabel: item => {
-                if (maxVal > 0 && item.raw > 0) {
-                  return `  ${Math.round((item.raw / totalPV) * 100)}% of period total`;
-                }
-                return '';
-              },
+              label: item => `  ${item.dataset.label}: ${fmtNum(item.raw)} page views`,
             },
           },
         },
         scales: {
           x: {
             grid:   { color: 'rgba(255,255,255,0.035)', drawBorder: false },
-            ticks:  {
-              color:         C.text,
-              font:          { family: "'DM Sans',sans-serif", size: 11 },
-              maxTicksLimit: granularity === 'hourly' ? 12 : 10,
-              maxRotation:   0,
-            },
+            ticks:  { color: C.text, font: { family: "'DM Sans',sans-serif", size: 11 }, maxTicksLimit: granularity === 'hourly' ? 12 : 10, maxRotation: 0 },
             border: { display: false },
           },
           y: {
             grid:   { color: 'rgba(255,255,255,0.035)', drawBorder: false },
-            ticks:  {
-              color:    C.text,
-              font:     { family: "'DM Sans',sans-serif", size: 11 },
-              callback: v => Number.isInteger(v) ? fmtNum(v) : '',
-              // Prevent fractional ticks on small datasets
-              precision: 0,
-              maxTicksLimit: 6,
-            },
+            ticks:  { color: C.text, font: { family: "'DM Sans',sans-serif", size: 11 }, callback: v => Number.isInteger(v) ? fmtNum(v) : '', precision: 0, maxTicksLimit: 6 },
             border:      { display: false },
             beginAtZero: true,
             suggestedMax: Math.max(maxVal * 1.15, 5),
@@ -441,7 +748,7 @@ window.analyticsModule = (() => {
     });
   }
 
-  // ── Top pages ───────────────────────────────────────────────────────────────
+  // ── Top pages (with drill-down click) ──────────────────────────────────────
   function renderTopPages(pages) {
     const el = document.getElementById('analyticsTopPages');
     if (!el) return;
@@ -449,7 +756,8 @@ window.analyticsModule = (() => {
     const max = pages[0].count;
     const total = pages.reduce((s, p) => s + p.count, 0);
     el.innerHTML = pages.slice(0, 12).map((p, i) => `
-      <div class="a-bar-row">
+      <div class="a-bar-row" style="cursor:pointer" title="Drill into ${esc(p.name)}"
+           onclick="window.analyticsModule.openPageDrilldown('${esc(p.name).replace(/'/g, "\\'")}')">
         <div class="a-bar-rank">${i + 1}</div>
         <div class="a-bar-label" title="${esc(p.name)}">${esc(fmtUrl(p.name))}</div>
         <div class="a-bar-track">
@@ -460,7 +768,73 @@ window.analyticsModule = (() => {
       </div>`).join('');
   }
 
-  // ── Traffic sources chart + legend ──────────────────────────────────────────
+  // ── Page drill-down ─────────────────────────────────────────────────────────
+  async function openPageDrilldown(url) {
+    drilldownUrl = url;
+    const modal = document.getElementById('modalPageDrilldown');
+    if (!modal) return;
+    modal.classList.add('open');
+
+    const titleEl = document.getElementById('drilldownTitle');
+    const bodyEl  = document.getElementById('drilldownBody');
+    if (titleEl) titleEl.textContent = url;
+    if (bodyEl)  bodyEl.innerHTML = `<div class="skeleton" style="height:180px;border-radius:var(--radius-md)"></div>`;
+
+    const params = new URLSearchParams({ domain, url, from: fromDate, to: toDate, tz });
+    const resp = await api.get('/api/analytics/page-drilldown?' + params);
+    if (!resp?.success || !bodyEl) return;
+
+    const d  = resp.data;
+    const maxCount = Math.max(...d.timeSeries.map(p => p.count), 1);
+
+    bodyEl.innerHTML = `
+      <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:12px 18px;text-align:center">
+          <div style="font-size:1.5rem;font-weight:700;color:#e4e8f0">${fmtNum(d.totalPageviews)}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Page Views</div>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:12px 18px;text-align:center">
+          <div style="font-size:1.5rem;font-weight:700;color:#e4e8f0">${fmtNum(d.uniqueVisitors)}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Unique Visitors</div>
+        </div>
+      </div>
+
+      <div style="position:relative;height:160px;margin-bottom:16px">
+        <canvas id="drilldownChart"></canvas>
+      </div>
+
+      ${d.topReferrers.length ? `
+        <h5 style="margin-bottom:8px;font-size:.875rem">Top Referrers for This Page</h5>
+        ${d.topReferrers.map((r, i) => `
+          <div class="a-bar-row">
+            <div class="a-bar-rank">${i + 1}</div>
+            <div class="a-bar-label">${esc(r.name || 'Direct')}</div>
+            <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, d.topReferrers[0].count)}%;background:${C.purple}"></div></div>
+            <div class="a-bar-count">${fmtNum(r.count)}</div>
+          </div>`).join('')}` : ''}`;
+
+    // Draw hourly chart
+    const ddCanvas = document.getElementById('drilldownChart');
+    if (ddCanvas) {
+      new Chart(ddCanvas, {
+        type: 'bar',
+        data: {
+          labels:   d.timeSeries.map(p => fmtDateLabel(p.date)),
+          datasets: [{ data: d.timeSeries.map(p => p.count), backgroundColor: hexAlpha(C.blue, 0.5), borderColor: C.blue, borderWidth: 1, borderRadius: 4 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { ...TOOLTIP, callbacks: { label: item => `  ${fmtNum(item.raw)} views` } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: C.text, font: { size: 10 }, maxTicksLimit: 12, maxRotation: 0 }, border: { display: false } },
+            y: { grid: { color: 'rgba(255,255,255,.03)' }, ticks: { color: C.text, font: { size: 10 }, precision: 0 }, border: { display: false }, beginAtZero: true },
+          },
+        },
+      });
+    }
+  }
+
+  // ── Traffic sources ─────────────────────────────────────────────────────────
   function renderSources(sources) {
     if (sourceChart) { sourceChart.destroy(); sourceChart = null; }
     const canvas = document.getElementById('analyticsSourceChart');
@@ -479,47 +853,24 @@ window.analyticsModule = (() => {
     if (canvas) {
       sourceChart = new Chart(canvas, {
         type: 'doughnut',
-        data: {
-          labels,
-          datasets: [{
-            data:            counts,
-            backgroundColor: colors,
-            borderColor:     '#141820',
-            borderWidth:     3,
-            hoverOffset:     8,
-          }],
-        },
+        data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderColor: '#141820', borderWidth: 3, hoverOffset: 8 }] },
         options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          cutout:              '68%',
-          animation:           { duration: 500 },
+          responsive: true, maintainAspectRatio: false, cutout: '68%', animation: { duration: 500 },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              ...TOOLTIP,
-              displayColors: true,
-              callbacks: {
-                label: item => `  ${item.label}: ${fmtNum(item.raw)} (${pct(item.raw, total)}%)`,
-              },
-            },
+            tooltip: { ...TOOLTIP, displayColors: true, callbacks: { label: item => `  ${item.label}: ${fmtNum(item.raw)} (${pct(item.raw, total)}%)` } },
           },
         },
-        // Center text plugin (inline)
         plugins: [{
           id: 'centerText',
           afterDraw(chart) {
             const { ctx, chartArea: { top, bottom, left, right } } = chart;
-            const cx = (left + right) / 2;
-            const cy = (top + bottom) / 2;
+            const cx = (left + right) / 2, cy = (top + bottom) / 2;
             ctx.save();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#e4e8f0';
-            ctx.font = "600 1.4rem 'DM Sans',sans-serif";
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#e4e8f0'; ctx.font = "600 1.4rem 'DM Sans',sans-serif";
             ctx.fillText(fmtNum(total), cx, cy - 8);
-            ctx.fillStyle = '#7a86a0';
-            ctx.font = "400 0.7rem 'DM Sans',sans-serif";
+            ctx.fillStyle = '#7a86a0'; ctx.font = "400 0.7rem 'DM Sans',sans-serif";
             ctx.fillText('total visits', cx, cy + 12);
             ctx.restore();
           },
@@ -546,8 +897,7 @@ window.analyticsModule = (() => {
     }
   }
 
-  // ── Generic breakdown bars (devices / browsers / OS) ───────────────────────
-  // Uses a dot instead of a rank number — 4-col grid via class `no-rank`
+  // ── Generic breakdown bars ──────────────────────────────────────────────────
   function renderBreakdown(containerId, items, colorMap) {
     const el = document.getElementById(containerId);
     if (!el) return;
@@ -558,9 +908,7 @@ window.analyticsModule = (() => {
       <div class="a-bar-row" style="grid-template-columns:16px 1fr 90px 38px 48px">
         <div class="a-bar-dot" style="background:${colorMap[item.name] || C.muted};width:8px;height:8px;border-radius:50%"></div>
         <div class="a-bar-label">${esc(item.name)}</div>
-        <div class="a-bar-track">
-          <div class="a-bar-fill" style="width:${pct(item.count, max)}%;background:${colorMap[item.name] || C.muted}"></div>
-        </div>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(item.count, max)}%;background:${colorMap[item.name] || C.muted}"></div></div>
         <div class="a-bar-pct">${pct(item.count, total)}%</div>
         <div class="a-bar-count">${fmtNum(item.count)}</div>
       </div>`).join('');
@@ -582,13 +930,10 @@ window.analyticsModule = (() => {
         <div class="a-bar-label">
           <a href="https://${esc(r.name)}" target="_blank" rel="noopener noreferrer"
              style="color:var(--accent);text-decoration:none;font-family:var(--font-mono);font-size:.8rem"
-             onmouseover="this.style.textDecoration='underline'"
-             onmouseout="this.style.textDecoration='none'"
+             onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"
           >${esc(r.name)}</a>
         </div>
-        <div class="a-bar-track">
-          <div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.purple}"></div>
-        </div>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.purple}"></div></div>
         <div class="a-bar-pct">${pct(r.count, total)}%</div>
         <div class="a-bar-count">${fmtNum(r.count)}</div>
       </div>`).join('');
@@ -598,16 +943,10 @@ window.analyticsModule = (() => {
   function renderGeo() {
     const el = document.getElementById('analyticsGeo');
     if (!el) return;
-
-    if (!geoCache) {
-      el.innerHTML = emptyState('Geographic data not available yet — check back after the ingester has run.');
-      return;
-    }
-
-    if (geoLevel === 'country')      renderGeoCountries(el);
-    else if (geoLevel === 'region')  renderGeoRegions(el);
-    else                              renderGeoCities(el);
-
+    if (!geoCache) { el.innerHTML = emptyState('Geographic data not available yet.'); return; }
+    if (geoLevel === 'country')     renderGeoCountries(el);
+    else if (geoLevel === 'region') renderGeoRegions(el);
+    else                            renderGeoCities(el);
     const backBtn = document.getElementById('geoBackBtn');
     if (backBtn) backBtn.style.display = geoLevel !== 'country' ? '' : 'none';
   }
@@ -615,9 +954,7 @@ window.analyticsModule = (() => {
   function renderGeoCountries(el) {
     const countries = geoCache?.countries || [];
     if (!countries.length) { el.innerHTML = emptyState('No geographic data for this range.'); return; }
-    const max   = countries[0].count;
-    const total = countries.reduce((s, r) => s + r.count, 0);
-
+    const max = countries[0].count, total = countries.reduce((s, r) => s + r.count, 0);
     el.innerHTML = countries.slice(0, 20).map((r, i) => `
       <div class="a-bar-row a-geo-row" tabindex="0" role="button"
            title="Drill into ${countryName(r.code)} regions"
@@ -628,64 +965,48 @@ window.analyticsModule = (() => {
           <span style="font-size:1.15em;line-height:1">${countryFlag(r.code)}</span>
           <span>${esc(countryName(r.code))}</span>
         </div>
-        <div class="a-bar-track">
-          <div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.blue}"></div>
-        </div>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.blue}"></div></div>
         <div class="a-bar-pct">${pct(r.count, total)}%</div>
         <div class="a-bar-count">${fmtNum(r.count)}</div>
-      </div>`).join('') +
-      `<p style="font-size:.72rem;color:var(--text-muted);margin-top:10px">Click a country to drill into regions</p>`;
+      </div>`).join('') + `<p style="font-size:.72rem;color:var(--text-muted);margin-top:10px">Click a country to drill into regions</p>`;
   }
 
   function renderGeoRegions(el) {
     const regions = (geoCache?.regions || []).filter(r => r.country === geoFilter.country);
     if (!regions.length) { el.innerHTML = emptyState(`No region data for ${countryName(geoFilter.country)}.`); return; }
-    const max   = regions[0].count;
-    const total = regions.reduce((s, r) => s + r.count, 0);
-
-    el.innerHTML = `
-      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px">
-        ${countryFlag(geoFilter.country)} ${esc(countryName(geoFilter.country))} · Regions
-      </p>
-      ${regions.slice(0, 25).map((r, i) => {
-        const label = (geoFilter.country === 'US' && US_STATES[r.region]) ? US_STATES[r.region] : (r.region || 'Unknown');
-        return `
-          <div class="a-bar-row a-geo-row" tabindex="0" role="button"
-               onclick="window.analyticsModule.geoDrill('region','${esc(r.region)}')"
-               onkeydown="if(event.key==='Enter')window.analyticsModule.geoDrill('region','${esc(r.region)}')">
-            <div class="a-bar-rank">${i + 1}</div>
-            <div class="a-bar-label">${esc(label)}</div>
-            <div class="a-bar-track">
-              <div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.teal}"></div>
-            </div>
-            <div class="a-bar-pct">${pct(r.count, total)}%</div>
-            <div class="a-bar-count">${fmtNum(r.count)}</div>
-          </div>`;
-      }).join('')}
-      <p style="font-size:.72rem;color:var(--text-muted);margin-top:10px">Click a region to see city breakdown</p>`;
+    const max = regions[0].count, total = regions.reduce((s, r) => s + r.count, 0);
+    el.innerHTML = `<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px">
+      ${countryFlag(geoFilter.country)} ${esc(countryName(geoFilter.country))} · Regions</p>
+    ${regions.slice(0, 25).map((r, i) => {
+      const label = (geoFilter.country === 'US' && US_STATES[r.region]) ? US_STATES[r.region] : (r.region || 'Unknown');
+      return `<div class="a-bar-row a-geo-row" tabindex="0" role="button"
+           onclick="window.analyticsModule.geoDrill('region','${esc(r.region)}')"
+           onkeydown="if(event.key==='Enter')window.analyticsModule.geoDrill('region','${esc(r.region)}')">
+        <div class="a-bar-rank">${i + 1}</div>
+        <div class="a-bar-label">${esc(label)}</div>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.teal}"></div></div>
+        <div class="a-bar-pct">${pct(r.count, total)}%</div>
+        <div class="a-bar-count">${fmtNum(r.count)}</div>
+      </div>`;
+    }).join('')}
+    <p style="font-size:.72rem;color:var(--text-muted);margin-top:10px">Click a region to see cities</p>`;
   }
 
   function renderGeoCities(el) {
     const cities = (geoCache?.cities || []).filter(r => r.country === geoFilter.country && r.region === geoFilter.region);
-    if (!cities.length) { el.innerHTML = emptyState(`No city data for ${geoFilter.country} / ${geoFilter.region}.`); return; }
-    const max   = cities[0].count;
-    const total = cities.reduce((s, r) => s + r.count, 0);
+    if (!cities.length) { el.innerHTML = emptyState(`No city data for this region.`); return; }
+    const max = cities[0].count, total = cities.reduce((s, r) => s + r.count, 0);
     const regionLabel = (geoFilter.country === 'US' && US_STATES[geoFilter.region]) ? US_STATES[geoFilter.region] : geoFilter.region;
-
-    el.innerHTML = `
-      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px">
-        ${countryFlag(geoFilter.country)} ${esc(countryName(geoFilter.country))} › ${esc(regionLabel)} · Cities
-      </p>
-      ${cities.slice(0, 25).map((r, i) => `
-        <div class="a-bar-row">
-          <div class="a-bar-rank">${i + 1}</div>
-          <div class="a-bar-label">${esc(r.city || 'Unknown')}</div>
-          <div class="a-bar-track">
-            <div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.purple}"></div>
-          </div>
-          <div class="a-bar-pct">${pct(r.count, total)}%</div>
-          <div class="a-bar-count">${fmtNum(r.count)}</div>
-        </div>`).join('')}`;
+    el.innerHTML = `<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px">
+      ${countryFlag(geoFilter.country)} ${esc(countryName(geoFilter.country))} › ${esc(regionLabel)} · Cities</p>
+    ${cities.slice(0, 25).map((r, i) => `
+      <div class="a-bar-row">
+        <div class="a-bar-rank">${i + 1}</div>
+        <div class="a-bar-label">${esc(r.city || 'Unknown')}</div>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${pct(r.count, max)}%;background:${C.purple}"></div></div>
+        <div class="a-bar-pct">${pct(r.count, total)}%</div>
+        <div class="a-bar-count">${fmtNum(r.count)}</div>
+      </div>`).join('')}`;
   }
 
   function geoDrill(level, value) {
@@ -715,7 +1036,13 @@ window.analyticsModule = (() => {
     if (!data?.success) return;
     const n = data.data.activeVisitors || 0;
     countEl.textContent = n;
-    el.style.display    = n > 0 ? '' : 'none';
+    el.style.display = n > 0 ? '' : 'none';
+  }
+
+  // ── CSV export ──────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const params = new URLSearchParams({ domain, from: fromDate, to: toDate, granularity, trafficType, tz });
+    window.location.href = '/api/analytics/export/csv?' + params;
   }
 
   // ── PDF export ──────────────────────────────────────────────────────────────
@@ -750,12 +1077,10 @@ window.analyticsModule = (() => {
 
   function showErrorState(msg) {
     const el = document.getElementById('analyticsStats');
-    if (el) el.innerHTML = `
-      <div style="grid-column:1/-1">
-        <div class="empty-state" style="padding:var(--space-8)">
-          <p class="text-red text-sm">${esc(msg || 'Failed to load analytics data.')}</p>
-        </div>
-      </div>`;
+    if (el) el.innerHTML = `<div style="grid-column:1/-1">
+      <div class="empty-state" style="padding:var(--space-8)">
+        <p class="text-red text-sm">${esc(msg || 'Failed to load analytics data.')}</p>
+      </div></div>`;
   }
 
   // ── Icons ───────────────────────────────────────────────────────────────────
@@ -781,7 +1106,7 @@ window.analyticsModule = (() => {
     return `${sec}s`;
   }
 
-  // All buckets are UTC — format labels in UTC to match
+  // Format date labels — buckets from the server are "local-shifted UTC" so format with timeZone:'UTC'
   function fmtDateLabel(iso) {
     const d = new Date(iso);
     if (granularity === 'hourly')  return d.toLocaleTimeString('en-US', { hour:'numeric', hour12:true, timeZone:'UTC' });
@@ -790,10 +1115,8 @@ window.analyticsModule = (() => {
     return d.toLocaleDateString('en-US', { month:'short', day:'numeric', timeZone:'UTC' });
   }
 
-  // Format URL for display: show just the path, abbreviated if needed
   function fmtUrl(url) {
     if (!url || url === '/') return '/ (Home)';
-    // Trim long URLs from the right, preserving the end (most specific part)
     if (url.length > 44) return url.slice(0, 20) + '…' + url.slice(-22);
     return url;
   }
@@ -807,5 +1130,9 @@ window.analyticsModule = (() => {
   function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function emptyState(msg) { return `<div class="empty-state" style="padding:var(--space-5)"><p class="text-sm text-muted">${msg}</p></div>`; }
 
-  return { init, load, exportPDF, geoDrill, geoDrillBack };
+  return {
+    init, load, exportPDF, exportCSV, geoDrill, geoDrillBack,
+    openPageDrilldown, openNewReportModal, saveNewReport,
+    sendReportNow, toggleReport, deleteReport, switchTab,
+  };
 })();

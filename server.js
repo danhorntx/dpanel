@@ -90,7 +90,8 @@ app.use('/api/git',         requireLogin, require('./routes/git'));
 app.use('/api/files',       requireLogin, require('./routes/files'));
 app.use('/api/healthcheck', requireLogin, require('./routes/healthcheck'));
 app.use('/api/users',       requireLogin, require('./routes/users'));
-app.use('/api/analytics',   requireLogin, require('./routes/analytics'));
+app.use('/api/analytics',         requireLogin, require('./routes/analytics'));
+app.use('/api/analytics/reports', requireLogin, require('./routes/analytics-reports'));
 app.use('/webmail',                       require('./routes/webmail'));
 
 // Authenticated HTML pages
@@ -114,6 +115,16 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
 // ── WebSocket terminal ────────────────────────────────────────────────────────
 const wss = new WebSocket.Server({ server, path: '/terminal' });
 attachTerminal(wss, sessionMiddleware);
+
+// ── Analytics report mailer cron (runs at 7am UTC daily) ─────────────────────
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const mailer = require('./lib/analytics-mailer');
+    await mailer.checkAndSendDueReports();
+  } catch (err) {
+    console.error('[cron] analytics report error:', err.message);
+  }
+});
 
 // ── SSL renewal cron ──────────────────────────────────────────────────────────
 cron.schedule('0 3 * * *', async () => {

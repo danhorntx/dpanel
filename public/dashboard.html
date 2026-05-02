@@ -191,6 +191,23 @@
       color: var(--text-muted);
     }
 
+    /* ── Analytics tab navigation ───────────────────────────────────────────── */
+    .analytics-tab-btn {
+      padding: 8px 16px;
+      font-size: .8125rem;
+      font-weight: 500;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      border-radius: 0;
+      transition: color var(--duration-fast), border-color var(--duration-fast);
+    }
+    .analytics-tab-btn:hover { color: var(--text-secondary); }
+    .analytics-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
     /* ── Print / PDF export ──────────────────────────────────────────────────── */
     #analyticsPrintHeader { display: none; }
 
@@ -869,23 +886,29 @@
           <h2>phpMyAdmin</h2>
           <p>Visual database management</p>
         </div>
-        <div class="page-header-actions">
-          <a href="/phpmyadmin" target="_blank" class="btn btn-secondary btn-sm" title="Open in new tab">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-right:4px;vertical-align:-1px">
-              <path d="M7 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1V9M10 2h4m0 0v4m0-4L7 9"/>
-            </svg>
-            Open in new tab
-          </a>
-        </div>
       </div>
-      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);background:var(--surface-1);height:calc(100vh - 220px);min-height:500px;">
-        <iframe
-          id="phpmyadminFrame"
-          src="/phpmyadmin"
-          style="width:100%;height:100%;border:none;display:block;"
-          title="phpMyAdmin"
-          loading="lazy">
-        </iframe>
+      <div style="display:flex;align-items:center;justify-content:center;padding:var(--space-10) var(--space-6)">
+        <div class="card" style="max-width:480px;width:100%;text-align:center;padding:var(--space-10) var(--space-8)">
+          <!-- phpMyAdmin logo mark -->
+          <div style="margin-bottom:var(--space-5)">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block">
+              <rect width="48" height="48" rx="10" fill="#F5A623" opacity="0.12"/>
+              <path d="M12 34V14h8a6 6 0 010 12h-4v8H12zm4-12h4a2 2 0 000-4h-4v4z" fill="#F5A623"/>
+              <path d="M28 34V14h8a6 6 0 010 12h-4v8H28zm4-12h4a2 2 0 000-4h-4v4z" fill="#F5A623" opacity="0.5"/>
+            </svg>
+          </div>
+          <h3 style="font-size:1.125rem;font-weight:600;margin:0 0 var(--space-2)">phpMyAdmin</h3>
+          <p class="text-secondary text-sm" style="margin-bottom:var(--space-6);line-height:1.6">
+            phpMyAdmin opens in a separate browser tab. Log in with any MariaDB user account.
+          </p>
+          <button class="btn btn-primary" onclick="window.openPhpMyAdmin()" style="gap:var(--space-2);padding:0.625rem 1.5rem;font-size:0.9375rem">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1V9M10 2h4m0 0v4m0-4L7 9"/></svg>
+            Open phpMyAdmin
+          </button>
+          <p class="text-muted" style="font-size:0.75rem;margin-top:var(--space-4)">
+            Served by Apache at <code id="pmaUrlDisplay" style="font-family:var(--font-mono)"></code>
+          </p>
+        </div>
       </div>
     </section>
 
@@ -1384,6 +1407,11 @@
             <option value="all">All Domains</option>
           </select>
 
+          <!-- Timezone selector -->
+          <select id="analyticsTimezoneSelect" class="input input-sm" aria-label="Timezone" style="min-width:140px">
+            <option value="America/Chicago">Central (CT)</option>
+          </select>
+
           <!-- Date presets -->
           <div class="a-btn-group" role="group" aria-label="Date range presets">
             <button class="btn btn-xs analytics-preset" data-days="today">Today</button>
@@ -1405,18 +1433,36 @@
           <span style="color:var(--text-muted);font-size:.8125rem">→</span>
           <input type="date" id="analyticsTo" class="input input-sm" aria-label="To date" style="width:128px">
 
+          <!-- Compare toggle -->
+          <label style="display:flex;align-items:center;gap:6px;font-size:.8125rem;color:var(--text-secondary);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="analyticsCompareToggle" style="width:14px;height:14px;cursor:pointer">
+            Compare
+          </label>
+
           <!-- Refresh -->
           <button class="btn btn-secondary btn-sm" onclick="window.analyticsModule.load()" aria-label="Refresh">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2M14 2v4h-4"/></svg>
             Refresh
           </button>
 
+          <!-- CSV Export -->
+          <button class="btn btn-secondary btn-sm" onclick="window.analyticsModule.exportCSV()" aria-label="Export CSV">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 14h10M8 3v8M5 8l3 3 3-3"/></svg>
+            CSV
+          </button>
+
           <!-- Export PDF -->
           <button class="btn btn-primary btn-sm" onclick="window.analyticsModule.exportPDF()" aria-label="Export PDF report">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 14h10M8 3v8M5 8l3 3 3-3"/></svg>
-            Export PDF
+            PDF
           </button>
         </div>
+      </div>
+
+      <!-- ── Health status + data source badge ──────────────────────────────── -->
+      <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3);flex-wrap:wrap">
+        <span id="analyticsHealthStatus"></span>
+        <span id="analyticsDataSource" style="font-size:.72rem;color:var(--text-muted)"></span>
       </div>
 
       <!-- ── Real-time active visitors badge ───────────────────────────────── -->
@@ -1427,120 +1473,150 @@
         </span>
       </div>
 
-      <!-- ── Summary stat cards ─────────────────────────────────────────────── -->
-      <div class="a-stats-grid" id="analyticsStats" aria-label="Summary metrics">
-        <!-- rendered by analyticsModule.renderSummaryCards() -->
+      <!-- ── Tab navigation ─────────────────────────────────────────────────── -->
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:var(--space-5)" id="analyticsPrintHide2">
+        <button class="analytics-tab-btn active" data-tab="overview">Overview</button>
+        <button class="analytics-tab-btn" data-tab="errors">Errors</button>
+        <button class="analytics-tab-btn" data-tab="reports">Reports</button>
       </div>
 
-      <!-- ── Traffic over time ─────────────────────────────────────────────── -->
-      <div class="card-outer" style="margin-bottom:var(--space-4)">
-        <div class="card-inner">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-2)">
-            <div>
-              <h4 style="margin:0 0 2px">Traffic Over Time</h4>
-              <span class="a-chart-total" id="analyticsChartTotal"></span>
+      <!-- ════ OVERVIEW TAB ════ -->
+      <div class="analytics-tab-content" data-tab="overview">
+
+        <!-- ── Summary stat cards ─────────────────────────────────────────── -->
+        <div class="a-stats-grid" id="analyticsStats" aria-label="Summary metrics">
+          <!-- rendered by analyticsModule.renderSummaryCards() -->
+        </div>
+
+        <!-- ── Traffic over time ──────────────────────────────────────────── -->
+        <div class="card-outer" style="margin-bottom:var(--space-4)">
+          <div class="card-inner">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-2)">
+              <div>
+                <h4 style="margin:0 0 2px">Traffic Over Time</h4>
+                <span class="a-chart-total" id="analyticsChartTotal"></span>
+              </div>
+              <div class="a-btn-group" role="group" aria-label="Chart granularity">
+                <button class="btn btn-xs analytics-gran" data-gran="hourly">Hourly</button>
+                <button class="btn btn-xs analytics-gran active" data-gran="daily">Daily</button>
+                <button class="btn btn-xs analytics-gran" data-gran="weekly">Weekly</button>
+                <button class="btn btn-xs analytics-gran" data-gran="monthly">Monthly</button>
+              </div>
             </div>
-            <div class="a-btn-group" role="group" aria-label="Chart granularity">
-              <button class="btn btn-xs analytics-gran" data-gran="hourly">Hourly</button>
-              <button class="btn btn-xs analytics-gran active" data-gran="daily">Daily</button>
-              <button class="btn btn-xs analytics-gran" data-gran="weekly">Weekly</button>
-              <button class="btn btn-xs analytics-gran" data-gran="monthly">Monthly</button>
-            </div>
-          </div>
-          <div style="position:relative;height:300px">
-            <canvas id="analyticsTimeChart" aria-label="Traffic over time area chart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Top Pages + Traffic Sources ──────────────────────────────────── -->
-      <div class="a-grid-2">
-        <!-- Top Pages -->
-        <div class="card-outer">
-          <div class="card-inner">
-            <h4 style="margin-bottom:var(--space-4)">Top Pages</h4>
-            <div id="analyticsTopPages"></div>
-          </div>
-        </div>
-
-        <!-- Traffic Sources -->
-        <div class="card-outer">
-          <div class="card-inner">
-            <h4 style="margin-bottom:var(--space-4)">Traffic Sources</h4>
-            <div style="position:relative;height:200px;margin-bottom:var(--space-4)">
-              <canvas id="analyticsSourceChart" aria-label="Traffic sources doughnut chart"></canvas>
-            </div>
-            <div id="analyticsSourceList"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Devices / Browsers / OS ───────────────────────────────────────── -->
-      <div class="a-grid-3">
-        <div class="card-outer">
-          <div class="card-inner">
-            <h4 style="margin-bottom:var(--space-1)">Devices</h4>
-            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Desktop, mobile, tablet</p>
-            <div id="analyticsDevices"></div>
-          </div>
-        </div>
-        <div class="card-outer">
-          <div class="card-inner">
-            <h4 style="margin-bottom:var(--space-1)">Browsers</h4>
-            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Client browser breakdown</p>
-            <div id="analyticsBrowsers"></div>
-          </div>
-        </div>
-        <div class="card-outer">
-          <div class="card-inner">
-            <h4 style="margin-bottom:var(--space-1)">Operating Systems</h4>
-            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Visitor OS breakdown</p>
-            <div id="analyticsOS"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Top Referrers table ───────────────────────────────────────────── -->
-      <div class="card-outer" style="margin-bottom:var(--space-4)">
-        <div class="card-inner">
-          <h4 style="margin-bottom:var(--space-3)">Top Referrers</h4>
-          <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">External domains that linked visitors to your sites</p>
-          <div id="analyticsReferrers"></div>
-        </div>
-      </div>
-
-      <!-- ── Geographic Breakdown ─────────────────────────────────────────── -->
-      <div class="card-outer" style="margin-bottom:var(--space-4)">
-        <div class="card-inner">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);flex-wrap:wrap;gap:var(--space-2)">
-            <div>
-              <h4 style="margin:0">Geographic Breakdown</h4>
-              <p style="font-size:.75rem;color:var(--text-muted);margin-top:var(--space-1)">Where your visitors are coming from · click a country to drill down</p>
-            </div>
-            <div id="geoBackBtn" style="display:none">
-              <button class="btn btn-sm btn-ghost" onclick="window.analyticsModule.geoDrillBack()">← Back to Countries</button>
+            <div style="position:relative;height:300px">
+              <canvas id="analyticsTimeChart" aria-label="Traffic over time area chart"></canvas>
             </div>
           </div>
-          <div id="analyticsGeo">
-            <div class="empty-state" style="padding:var(--space-5)"><p class="text-sm text-muted">Loading geographic data…</p></div>
+        </div>
+
+        <!-- ── Top Pages + Traffic Sources ───────────────────────────────── -->
+        <div class="a-grid-2">
+          <!-- Top Pages -->
+          <div class="card-outer">
+            <div class="card-inner">
+              <h4 style="margin-bottom:var(--space-4)">Top Pages</h4>
+              <div id="analyticsTopPages"></div>
+            </div>
+          </div>
+
+          <!-- Traffic Sources -->
+          <div class="card-outer">
+            <div class="card-inner">
+              <h4 style="margin-bottom:var(--space-4)">Traffic Sources</h4>
+              <div style="position:relative;height:200px;margin-bottom:var(--space-4)">
+                <canvas id="analyticsSourceChart" aria-label="Traffic sources doughnut chart"></canvas>
+              </div>
+              <div id="analyticsSourceList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Devices / Browsers / OS ─────────────────────────────────────── -->
+        <div class="a-grid-3">
+          <div class="card-outer">
+            <div class="card-inner">
+              <h4 style="margin-bottom:var(--space-1)">Devices</h4>
+              <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Desktop, mobile, tablet</p>
+              <div id="analyticsDevices"></div>
+            </div>
+          </div>
+          <div class="card-outer">
+            <div class="card-inner">
+              <h4 style="margin-bottom:var(--space-1)">Browsers</h4>
+              <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Client browser breakdown</p>
+              <div id="analyticsBrowsers"></div>
+            </div>
+          </div>
+          <div class="card-outer">
+            <div class="card-inner">
+              <h4 style="margin-bottom:var(--space-1)">Operating Systems</h4>
+              <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Visitor OS breakdown</p>
+              <div id="analyticsOS"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Top Referrers table ─────────────────────────────────────────── -->
+        <div class="card-outer" style="margin-bottom:var(--space-4)">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-3)">Top Referrers</h4>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">External domains that linked visitors to your sites</p>
+            <div id="analyticsReferrers"></div>
+          </div>
+        </div>
+
+        <!-- ── Geographic Breakdown ───────────────────────────────────────── -->
+        <div class="card-outer" style="margin-bottom:var(--space-4)">
+          <div class="card-inner">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);flex-wrap:wrap;gap:var(--space-2)">
+              <div>
+                <h4 style="margin:0">Geographic Breakdown</h4>
+                <p style="font-size:.75rem;color:var(--text-muted);margin-top:var(--space-1)">Where your visitors are coming from · click a country to drill down</p>
+              </div>
+              <div id="geoBackBtn" style="display:none">
+                <button class="btn btn-sm btn-ghost" onclick="window.analyticsModule.geoDrillBack()">← Back to Countries</button>
+              </div>
+            </div>
+            <div id="analyticsGeo">
+              <div class="empty-state" style="padding:var(--space-5)"><p class="text-sm text-muted">Loading geographic data…</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Bot / Traffic Breakdown card ──────────────────────────────── -->
+        <div class="card-outer" style="margin-bottom:var(--space-4)">
+          <div class="card-inner">
+            <h4 style="margin-bottom:var(--space-1)">Traffic Classification</h4>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Bot detection powered by isbot + DPanel custom patterns</p>
+            <div id="analyticsTrafficBreakdown"></div>
+          </div>
+        </div>
+
+        <!-- ── Data source note ───────────────────────────────────────────── -->
+        <p class="text-sm text-muted" style="text-align:center;padding:var(--space-4) 0">
+          Data sourced from Apache access logs at <code class="text-mono" style="font-size:.75rem">/var/log/apache2/</code>
+          · IP geolocation via geoip-lite (MaxMind GeoLite2) · IPs anonymized, never stored raw
+        </p>
+
+      </div><!-- /overview tab -->
+
+      <!-- ════ ERRORS TAB ════ -->
+      <div class="analytics-tab-content" data-tab="errors" style="display:none">
+        <div id="analyticsErrorsContent">
+          <div class="empty-state" style="padding:var(--space-6)">
+            <p class="text-sm text-muted">Switch to this tab to load HTTP error analysis.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Bot / Traffic Breakdown card ─────────────────────────────────── -->
-      <div class="card-outer" style="margin-bottom:var(--space-4)">
-        <div class="card-inner">
-          <h4 style="margin-bottom:var(--space-1)">Traffic Classification</h4>
-          <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:var(--space-3)">Bot detection powered by isbot + DPanel custom patterns</p>
-          <div id="analyticsTrafficBreakdown"></div>
+      <!-- ════ REPORTS TAB ════ -->
+      <div class="analytics-tab-content" data-tab="reports" style="display:none">
+        <div id="analyticsReportsContent">
+          <div class="empty-state" style="padding:var(--space-6)">
+            <p class="text-sm text-muted">Switch to this tab to manage email report subscriptions.</p>
+          </div>
         </div>
       </div>
-
-      <!-- ── Data source note ──────────────────────────────────────────────── -->
-      <p class="text-sm text-muted" style="text-align:center;padding:var(--space-4) 0">
-        Data sourced from Apache access logs at <code class="text-mono" style="font-size:.75rem">/var/log/apache2/</code>
-        · IP geolocation via geoip-lite (MaxMind GeoLite2) · IPs anonymized, never stored raw
-      </p>
 
     </section>
 
@@ -1569,6 +1645,59 @@
         onclick="window.dashboard.reboot()">
         Yes, Reboot Now
       </button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Page Drill-down modal -->
+<div class="modal-backdrop" id="modalPageDrilldown">
+  <div class="modal-outer" style="max-width:640px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Page Analytics</h3>
+        <div id="drilldownTitle" style="font-size:.8125rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px;word-break:break-all"></div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modalPageDrilldown').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="drilldownBody" style="padding:var(--space-5)">
+      <div class="skeleton" style="height:180px;border-radius:var(--radius-md)"></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- New Report Subscription modal -->
+<div class="modal-backdrop" id="modalNewReport">
+  <div class="modal-outer" style="max-width:500px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>New Email Report Subscription</h3>
+      <button class="modal-close" onclick="document.getElementById('modalNewReport').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Subscription Label</label>
+        <input type="text" class="input" id="newReportLabel" placeholder="e.g. Weekly All Domains · Client A Monthly">
+      </div>
+      <div class="form-group">
+        <label>Recipient Email</label>
+        <input type="email" class="input" id="newReportEmail" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Frequency</label>
+        <select class="input" id="newReportFreq">
+          <option value="daily">Daily</option>
+          <option value="weekly" selected>Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Domains <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+        <input type="text" class="input mono" id="newReportDomains" placeholder="* for all, or: example.com, shop.example.com">
+        <span class="field-hint">Leave blank or enter <code>*</code> for all domains. Comma-separate for multiple specific domains.</span>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalNewReport').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.analyticsModule.saveNewReport()">Create Subscription</button>
     </div>
   </div></div>
 </div>
@@ -2990,8 +3119,11 @@ function navigate(sectionId) {
   if (sectionId === 'firewall') window.firewallMgr.load();
   if (sectionId === 'users')    { window.usersMgr.load(); window.usersMgr.loadAuditLog(); }
   if (sectionId === 'phpmyadmin') {
-    const frame = document.getElementById('phpmyadminFrame');
-    if (frame && !frame.dataset.loaded) { frame.src = '/phpmyadmin'; frame.dataset.loaded = '1'; }
+    // Show the URL and auto-open in new tab
+    const pmaUrl = `https://${window.location.hostname}/phpmyadmin`;
+    const urlEl = document.getElementById('pmaUrlDisplay');
+    if (urlEl) urlEl.textContent = pmaUrl;
+    window.open(pmaUrl, '_blank', 'noopener,noreferrer');
   }
   if (sectionId === 'analytics') window.analyticsModule && window.analyticsModule.init();
   if (sectionId === 'dns')      window.dnsMgr && window.dnsMgr.init();
@@ -3001,6 +3133,17 @@ function navigate(sectionId) {
 }
 
 navItems.forEach(n => n.addEventListener('click', () => navigate(n.dataset.section)));
+
+// ── phpMyAdmin launcher ───────────────────────────────────────────────────────
+window.openPhpMyAdmin = function() {
+  const pmaUrl = `https://${window.location.hostname}/phpmyadmin`;
+  window.open(pmaUrl, '_blank', 'noopener,noreferrer');
+};
+// Pre-populate URL display on init
+(function() {
+  const urlEl = document.getElementById('pmaUrlDisplay');
+  if (urlEl) urlEl.textContent = `https://${window.location.hostname}/phpmyadmin`;
+})();
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 document.getElementById('logoutBtn').addEventListener('click', async () => {

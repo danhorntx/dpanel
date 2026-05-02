@@ -55,4 +55,40 @@ router.put('/password', async (req, res) => {
   }
 });
 
+// GET /api/settings/me — return current user's profile (timezone, username, role)
+router.get('/me', async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated.' });
+    const [[user]] = await pool.query(
+      `SELECT id, username, role, timezone, created_at FROM dpanel_users WHERE id = ?`,
+      [userId]
+    );
+    if (!user) return res.json({ success: false, error: 'User not found.' });
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/settings/timezone — update current user's analytics timezone preference
+router.patch('/timezone', async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ success: false, error: 'Not authenticated.' });
+
+    const { timezone } = req.body;
+    if (!timezone) return res.json({ success: false, error: 'timezone is required' });
+
+    // Validate timezone string
+    try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }); }
+    catch { return res.json({ success: false, error: 'Invalid timezone' }); }
+
+    await pool.query('UPDATE dpanel_users SET timezone = ? WHERE id = ?', [timezone, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
