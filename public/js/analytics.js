@@ -536,7 +536,7 @@ window.analyticsModule = (() => {
     const freq     = document.getElementById('newReportFreq')?.value || 'weekly';
     const domainEl = document.getElementById('newReportDomains')?.value.trim();
 
-    if (!label || !email) { toast('Label and email are required', 'error'); return; }
+    if (!label || !email) { toast('error', 'Label and email are required'); return; }
 
     let domains = ['*'];
     if (domainEl && domainEl !== '*' && domainEl !== '') {
@@ -545,32 +545,32 @@ window.analyticsModule = (() => {
 
     const resp = await api.post('/api/analytics/reports', { label, recipient_email: email, frequency: freq, domains });
     if (resp?.success) {
-      toast('Report subscription created');
+      toast('success', 'Report subscription created');
       document.getElementById('modalNewReport')?.classList.remove('open');
       loadReports();
     } else {
-      toast(resp?.error || 'Failed to create subscription', 'error');
+      toast('error', resp?.error || 'Failed to create subscription');
     }
   }
 
   async function sendReportNow(id) {
-    toast('Sending report...');
+    toast('info', 'Sending report...');
     const resp = await api.post(`/api/analytics/reports/${id}/send`, {});
-    if (resp?.success) toast('Report sent successfully');
-    else toast(resp?.error || 'Failed to send report', 'error');
+    if (resp?.success) toast('success', 'Report sent successfully');
+    else toast('error', resp?.error || 'Failed to send report');
   }
 
   async function toggleReport(id, currentActive) {
     const resp = await api.put(`/api/analytics/reports/${id}`, { active: currentActive ? 0 : 1 });
     if (resp?.success) loadReports();
-    else toast(resp?.error || 'Failed to update', 'error');
+    else toast('error', resp?.error || 'Failed to update');
   }
 
   async function deleteReport(id) {
     if (!confirm('Delete this report subscription?')) return;
     const resp = await api.delete(`/api/analytics/reports/${id}`);
-    if (resp?.success) { toast('Deleted'); loadReports(); }
-    else toast(resp?.error || 'Failed to delete', 'error');
+    if (resp?.success) { toast('success', 'Deleted'); loadReports(); }
+    else toast('error', resp?.error || 'Failed to delete');
   }
 
   // ── Master render ───────────────────────────────────────────────────────────
