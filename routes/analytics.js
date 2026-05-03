@@ -5,6 +5,7 @@
  */
 const express   = require('express');
 const analytics = require('../lib/analytics');
+const { pool }  = require('../lib/db');
 const router    = express.Router();
 
 // ── Shared: parse date params with timezone awareness ────────────────────────
@@ -202,6 +203,79 @@ router.get('/export/csv', async (req, res) => {
   } catch (err) {
     res.status(500).send('Export failed: ' + err.message);
   }
+});
+
+// ── GET /api/analytics/reports ────────────────────────────────────────────────
+router.get('/reports', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM analytics_report_subscriptions ORDER BY created_at DESC'
+    );
+    const data = rows.map(r => ({
+      ...r,
+      domains: JSON.parse(r.domains_json || '["*"]'),
+    }));
+    res.json({ success: true, data });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── POST /api/analytics/reports ───────────────────────────────────────────────
+router.post('/reports', async (req, res) => {
+  try {
+    const { label, recipient_email, frequency = 'weekly', domains = ['*'] } = req.body;
+    if (!label || !recipient_email) {
+      return res.json({ success: false, error: 'label and recipient_email are required' });
+    }
+    if (!['daily', 'weekly', 'monthly'].includes(frequency)) {
+      return res.json({ success: false, error: 'frequency must be daily, weekly, or monthly' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO analytics_report_subscriptions (label, recipient_email, frequency, domains_json) VALUES (?, ?, ?, ?)',
+      [label, recipient_email, frequency, JSON.stringify(domains)]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── PUT /api/analytics/reports/:id ───────────────────────────────────────────
+router.put('/reports/:id', async (req, res) => {
+  try {
+    const { active, label, recipient_email, frequency, domains } = req.body;
+    const updates = [];
+    const values  = [];
+    if (active !== undefined)     { updates.push('active = ?');           values.push(active ? 1 : 0); }
+    if (label !== undefined)      { updates.push('label = ?');            values.push(label); }
+    if (recipient_email !== undefined) { updates.push('recipient_email = ?'); values.push(recipient_email); }
+    if (frequency !== undefined)  { updates.push('frequency = ?');        values.push(frequency); }
+    if (domains !== undefined)    { updates.push('domains_json = ?');     values.push(JSON.stringify(domains)); }
+    if (!updates.length) return res.json({ success: false, error: 'Nothing to update' });
+    values.push(req.params.id);
+    await pool.query(`UPDATE analytics_report_subscriptions SET ${updates.join(', ')} WHERE id = ?`, values);
+    res.json({ success: true });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── DELETE /api/analytics/reports/:id ────────────────────────────────────────
+router.delete('/reports/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM analytics_report_subscriptions WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── POST /api/analytics/reports/:id/send — send digest now ───────────────────
+router.post('/reports/:id/send', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM analytics_report_subscriptions WHERE id = ?', [req.params.id]
+    );
+    if (!rows.length) return res.json({ success: false, error: 'Subscription not found' });
+    const sub = rows[0];
+    sub.domains = JSON.parse(sub.domains_json || '["*"]');
+    const mailer = require('../lib/analytics-mailer');
+    const result = await mailer.sendDigest(sub);
+    res.json({ success: true, ...result });
+  } catch (err) { res.json({ success: false, error: err.message }); }
 });
 
 module.exports = router;
