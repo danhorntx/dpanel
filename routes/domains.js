@@ -190,14 +190,26 @@ router.post('/', async (req, res) => {
     }
 
     // 5. AutoSSL via certbot --apache (async — may take 15–30s)
+    //    Wait briefly after DNS provisioning so BIND finishes reloading before
+    //    certbot queries the authoritative nameserver for the ACME challenge.
     let sslStatus = 'pending';
     let sslError  = null;
+    const dnsWasProvisioned = ['record_added', 'zone_created'].includes(dnsResult.action);
+    if (dnsWasProvisioned) await new Promise(r => setTimeout(r, 3000));
     try {
       await ssl.autoSSL(domain, adminEmail);
       sslStatus = 'active';
     } catch (err) {
-      sslStatus = 'failed';
-      sslError  = err.message;
+      // One retry after a longer delay — covers slow BIND reloads and Let's Encrypt
+      // propagation lag on first-ever subdomain issuance.
+      try {
+        await new Promise(r => setTimeout(r, 10000));
+        await ssl.autoSSL(domain, adminEmail);
+        sslStatus = 'active';
+      } catch (retryErr) {
+        sslStatus = 'failed';
+        sslError  = retryErr.message;
+      }
     }
 
     res.json({
