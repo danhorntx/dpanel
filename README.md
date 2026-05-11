@@ -54,7 +54,9 @@ before doing anything else.
 
 ## What's in the box
 
-<!-- TODO: add a hero screenshot of the dashboard here -->
+<p align="center">
+  <img src="docs/screenshots/01-dashboard.png" alt="DPanel dashboard" width="900">
+</p>
 
 ### 🌐 Hosting
 
@@ -64,6 +66,10 @@ before doing anything else.
 - **Domain Health dashboard** — per-domain aggregator: SSL expiry, DNS, mail probe summary,
   backup age, disk usage, PHP version, recent Apache errors.
 - **Per-domain redirects** — `.htaccess` manager for 301/302 URL redirects.
+
+<p align="center">
+  <img src="docs/screenshots/02-domains.png" alt="Domains list" width="900">
+</p>
 
 ### 📨 Mail
 
@@ -77,6 +83,10 @@ before doing anything else.
   spam scoring.
 - **Per-domain TLS via Dovecot SNI** — each domain gets its own cert served correctly.
 - **Forwarding with local-keep** — shadow address pattern keeps a local copy when forwarding.
+
+<p align="center">
+  <img src="docs/screenshots/03-mail-health.png" alt="Mail Health probe results" width="900">
+</p>
 
 ### 🔐 Security
 
@@ -120,6 +130,12 @@ before doing anything else.
   modals, touch-target sizing.
 - Single-page admin app, no page reloads.
 - Built-in changelog viewer + interactive user guide.
+
+<p align="center">
+  <img src="docs/screenshots/06-mobile.png" alt="DPanel on mobile" width="280">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/05-changelog.png" alt="In-panel changelog viewer" width="600">
+</p>
 
 ---
 
