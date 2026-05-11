@@ -1,0 +1,21 @@
+[Unit]
+Description=DPanel webmail (vendored duperhuman, multi-tenant IMAP frontend)
+After=network.target dovecot.service postfix.service
+Wants=dovecot.service postfix.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/dpanel/webmail/server
+EnvironmentFile=/opt/dpanel/webmail/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Heap is tiny — the workload is I/O bound (IMAP fetches, JSON shuffling).
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
