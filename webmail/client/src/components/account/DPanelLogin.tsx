@@ -53,21 +53,29 @@ export function DPanelLogin({ onSuccess }: Props) {
           className="px-8 py-8 text-center"
           style={{ background: 'linear-gradient(135deg, #1b1938 0%, #13121f 100%)' }}
         >
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--accent-faint)', border: '1px solid var(--border-accent)', color: 'var(--accent)' }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M17.5 1L7.5 13h5l-1 10 10-12h-5l1-10z"
-                fill="currentColor"
-                stroke="currentColor"
-                strokeWidth="0.5"
-                strokeLinejoin="round"
-              />
-            </svg>
+          <div className="flex items-center justify-center gap-2.5 mb-4">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--accent-faint)', border: '1px solid var(--border-accent)', color: 'var(--accent)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M17.5 1L7.5 13h5l-1 10 10-12h-5l1-10z"
+                  fill="currentColor"
+                  stroke="currentColor"
+                  strokeWidth="0.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <span
+              className="text-[var(--text-primary)]"
+              style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.035em' }}
+            >
+              Duperhuman
+            </span>
           </div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)]" style={{ letterSpacing: '-0.03em' }}>
+          <h1 className="text-base font-semibold text-[var(--text-primary)]" style={{ letterSpacing: '-0.025em' }}>
             Sign in to your mailbox
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">

@@ -804,6 +804,18 @@ body.sidebar-open #mobileNavOverlay { display: block; }
       <div class="wm-login-back">
         <a href="/dashboard">← Back to control panel</a>
       </div>
+      <div class="wm-login-back" style="margin-top: 0.5rem;">
+        <a href="#" id="wmSwitchToDuperhuman">⚡ Try the new Duperhuman webmail</a>
+      </div>
+      <script>
+        document.getElementById('wmSwitchToDuperhuman').addEventListener('click', function(e) {
+          e.preventDefault();
+          // Clear the classic-mode cookie and reload — Apache routes the
+          // request to the Duperhuman SPA when the cookie is absent.
+          document.cookie = 'webmail_mode=; max-age=0; path=/; SameSite=Lax';
+          window.location.reload();
+        });
+      </script>
     </div>
   </div>
 </div>
