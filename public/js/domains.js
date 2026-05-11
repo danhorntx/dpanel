@@ -63,14 +63,21 @@ window.domains = (() => {
         <td>${v.enabled ? '<span class="badge badge-green"><span class="badge-dot"></span>Enabled</span>' : '<span class="badge badge-red">Disabled</span>'}</td>
         <td>
           <div class="td-actions">
+            <button class="btn btn-ghost btn-xs" onclick="window.domains.openHealth('${v.domain}')">Health</button>
             ${v.enabled
               ? `<button class="btn btn-ghost btn-xs" onclick="window.domains.toggle('${v.domain}', false)">Disable</button>`
               : `<button class="btn btn-ghost btn-xs" onclick="window.domains.toggle('${v.domain}', true)">Enable</button>`}
-            <button class="btn btn-ghost btn-xs" onclick="window.ftp.openForDomain('${v.domain}', '${v.docRoot}')">Access</button>
-            <button class="btn btn-ghost btn-xs" onclick="window.domains.openLogs('${v.domain}')">Logs</button>
-            <button class="btn btn-ghost btn-xs" onclick="window.domains.openRedirects('${v.domain}')">Redirects</button>
-            <button class="btn btn-ghost btn-xs" onclick="window.domains.openConfig('${v.domain}')">Config</button>
-            <button class="btn btn-danger btn-xs" onclick="window.domains.confirmDelete('${v.domain}')">Delete</button>
+            <details class="row-menu">
+              <summary aria-label="More actions">⋯</summary>
+              <div class="row-menu-list">
+                <button onclick="window.ftp.openForDomain('${v.domain}', '${v.docRoot}')">SFTP Access</button>
+                <button onclick="window.domains.openLogs('${v.domain}')">Logs</button>
+                <button onclick="window.domains.openRedirects('${v.domain}')">Redirects</button>
+                <button onclick="window.domains.openConfig('${v.domain}')">Apache Config</button>
+                <div class="menu-sep"></div>
+                <button class="danger" onclick="window.domains.confirmDelete('${v.domain}')">Delete</button>
+              </div>
+            </details>
           </div>
         </td>
       </tr>`).join('');
@@ -163,53 +170,173 @@ window.domains = (() => {
     btn.classList.remove('loading'); btn.disabled = false;
     btn.textContent = 'Create Domain';
 
-    if (data?.success) {
+    // Whether create succeeded or failed, show the result modal so the user
+    // can see what ran, what was rolled back, and (on failure) why.
+    if (data) {
       closeModal('modalAddDomain');
       document.getElementById('addDomainName').value = '';
       document.getElementById('addDomainRoot').value = '';
       document.getElementById('addDomainMailDns').checked = false;
       load();
-      showCredentials(data.credentials);
+      showResult(name, data);
     } else {
-      toast('error', 'Failed', data?.error);
+      toast('error', 'Failed', 'Network error');
     }
   }
 
-  function showCredentials(c) {
-    if (!c) return;
+  // ── Human labels for reconciler step names ────────────────────────────────
+  const STEP_LABELS = {
+    'apache-vhost':     'Apache vhost',
+    'sftp-account':     'SFTP deploy account',
+    'dns':              'DNS',
+    'mail-dns':         'Mail DNS (MX / SPF / DMARC / DKIM)',
+    'mail-account':     'First mailbox',
+    'mail-autoconfig':  'Mail autoconfig (Outlook / Apple Mail / TB)',
+    'webmail-vhost':    'Webmail proxy vhost',
+    'ssl-main':         'SSL — main domain',
+    'ssl-webmail':      'SSL — webmail',
+    'ssl-mail':         'SSL — mail server (IMAP/SMTP)',
+    'dovecot-sni':      'Dovecot per-domain TLS',
+    // Destroy-side step names
+    'autoconfig-vhost': 'Autoconfig vhost teardown',
+    'ssl-certs':        'SSL certs teardown',
+    'dkim':             'DKIM keys teardown',
+  };
 
-    document.getElementById('credDomain').textContent = c.domain || '—';
+  function _stepIcon(status) {
+    switch (status) {
+      case 'success': return { icon: '✓', color: 'var(--text-success, #4ade80)', bg: 'rgba(74,222,128,0.12)' };
+      case 'skipped': return { icon: '–', color: 'var(--text-muted)',           bg: 'rgba(255,255,255,0.04)' };
+      case 'warning': return { icon: '!', color: 'var(--accent-amber, #f59e0b)', bg: 'rgba(245,158,11,0.12)' };
+      case 'failed':  return { icon: '✗', color: 'var(--text-error, #e05c6a)',  bg: 'rgba(224,92,106,0.12)' };
+      default:        return { icon: '·', color: 'var(--text-muted)',           bg: 'rgba(255,255,255,0.04)' };
+    }
+  }
 
-    const sslEl = document.getElementById('credSSLStatus');
+  function _fmtDuration(ms) {
+    if (ms == null) return '';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  // Treat ssl-webmail's "non-fatal SSL failed" detail string as a warning, not
+  // a plain success. (Backend reports status:success with a warning in detail —
+  // see lib/state/domain.js. This bit of glue is documented in the source.)
+  function _normalizeStatus(step) {
+    if (step.status === 'success' && step.detail && /failed/i.test(step.detail)) return 'warning';
+    return step.status;
+  }
+
+  function _renderSteps(steps, rolledBack) {
+    const ul = document.getElementById('credStepsList');
+    ul.innerHTML = '';
+    const rolledSet = new Set(rolledBack || []);
+    for (const step of steps || []) {
+      const status = _normalizeStatus(step);
+      const { icon, color, bg } = _stepIcon(status);
+      const label = STEP_LABELS[step.name] || step.name;
+      const dur = _fmtDuration(step.duration_ms);
+      const wasRolledBack = rolledSet.has(step.name);
+
+      const detailHtml = step.error
+        ? `<div style="font-size:0.75rem;color:var(--text-error,#e05c6a);margin-top:4px;font-family:var(--font-mono);white-space:pre-wrap;word-break:break-word">${escapeHtml(step.error)}</div>`
+        : (step.detail
+            ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">${escapeHtml(step.detail)}</div>`
+            : '');
+
+      const rolledHtml = wasRolledBack
+        ? `<span class="badge badge-muted" style="margin-left:6px;font-size:0.625rem">rolled back</span>`
+        : '';
+
+      const li = document.createElement('li');
+      li.style = `display:flex;flex-direction:column;padding:var(--space-2) var(--space-3);background:${bg};border-radius:var(--radius-sm);border:1px solid var(--border-subtle, rgba(255,255,255,0.05))`;
+      li.innerHTML = `
+        <div style="display:flex;align-items:center;gap:var(--space-2)">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:${color}1a;color:${color};font-weight:700;font-size:0.75rem">${icon}</span>
+          <span style="flex:1;font-size:0.8125rem;color:var(--text-primary)">${escapeHtml(label)}${rolledHtml}</span>
+          <span style="font-size:0.75rem;color:var(--text-muted);font-variant-numeric:tabular-nums">${status === 'skipped' ? 'skipped' : dur}</span>
+        </div>
+        ${detailHtml}
+      `;
+      ul.appendChild(li);
+    }
+    document.getElementById('credSteps').style.display = steps?.length ? '' : 'none';
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  /**
+   * Render the unified create-result modal for both success and failure paths.
+   *
+   * Success → green header, steps timeline, SSL/mail badges, SFTP credentials.
+   * Failure → red header, top-level error banner, steps timeline (with rolled-back
+   *            marks), no credentials, no SFTP section.
+   */
+  function showResult(domain, data) {
+    const header   = document.getElementById('credHeader');
+    const topError = document.getElementById('credTopError');
+    const sslEl    = document.getElementById('credSSLStatus');
+    const mailDnsEl = document.getElementById('credMailDnsStatus');
+    const credsSection = document.getElementById('credsSFTPSection');
+    const acctErrEl = document.getElementById('credAccountError');
+
+    document.getElementById('credDomain').textContent = domain || '—';
+
+    // Header + top-level error
+    if (data.success) {
+      header.textContent = 'Domain Setup Complete';
+      header.style.color = '';
+      topError.style.display = 'none';
+    } else {
+      header.textContent = 'Domain Setup Failed';
+      header.style.color = 'var(--text-error, #e05c6a)';
+      topError.textContent = data.error || 'Unknown error';
+      topError.style.display = '';
+    }
+
+    // Steps timeline (always shown when we have them)
+    _renderSteps(data.steps || [], data.rolledBack || []);
+
+    // From here down, the existing summary widgets only apply on success.
+    if (!data.success) {
+      sslEl.innerHTML = '';
+      mailDnsEl.style.display = 'none';
+      credsSection.style.display = 'none';
+      acctErrEl.style.display = 'none';
+      openModal('modalSetupComplete');
+      return;
+    }
+
+    const c = data.credentials || {};
+
+    // SSL summary
     if (c.sslStatus === 'active') {
       sslEl.innerHTML = '<span class="badge badge-green"><span class="badge-dot"></span>SSL Active — HTTPS ready</span>';
     } else if (c.sslStatus === 'failed') {
-      const errSnip = (c.sslError || '').slice(0, 160);
       sslEl.innerHTML = `<span class="badge badge-red">SSL Failed</span>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;font-family:var(--font-mono);white-space:pre-wrap;word-break:break-all">${errSnip}</p>
-        <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Go to <strong>SSL Certs → AutoSSL</strong> once DNS fully propagates.</p>`;
+        <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Retry from <strong>SSL Certs → AutoSSL</strong> once DNS fully propagates.</p>`;
     } else {
       sslEl.innerHTML = '<span class="badge badge-muted">SSL Pending</span>';
     }
 
-    const mailDnsEl = document.getElementById('credMailDnsStatus');
+    // Mail DNS summary
     if (c.mailDns) {
       mailDnsEl.style.display = '';
       if (c.mailDns.applied) {
-        mailDnsEl.innerHTML = '<span class="badge badge-green"><span class="badge-dot"></span>Mail DNS configured — MX, SPF, and DMARC records added</span>';
+        const dkim = c.mailDns.dkimGenerated ? ' (DKIM key generated)' : '';
+        mailDnsEl.innerHTML = `<span class="badge badge-green"><span class="badge-dot"></span>Mail DNS configured${dkim}</span>`;
       } else {
-        const note = c.mailDns.message || c.mailDns.error || 'DNS zone not found';
         mailDnsEl.innerHTML = `<span class="badge badge-amber">Mail DNS pending</span>
-          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">${note} — you can configure it later under <strong style="color:var(--text-secondary)">Mail → DNS Setup</strong>.</p>`;
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">No managed parent zone — configure manually once DNS propagates, or retry under <strong style="color:var(--text-secondary)">Mail → DNS Setup</strong>.</p>`;
       }
     } else {
       mailDnsEl.style.display = 'none';
     }
 
-    const credsSection = document.getElementById('credsSFTPSection');
-    const errEl = document.getElementById('credAccountError');
-    errEl.style.display = 'none';
-
+    // SFTP credentials (only if account was created)
+    acctErrEl.style.display = 'none';
     if (c.username) {
       document.getElementById('credHost').textContent     = c.host || '—';
       document.getElementById('credPort').textContent     = c.port || 22;
@@ -220,12 +347,18 @@ window.domains = (() => {
     } else {
       credsSection.style.display = 'none';
       if (c.accountError) {
-        errEl.textContent = 'SFTP account error: ' + c.accountError;
-        errEl.style.display = '';
+        acctErrEl.textContent = 'SFTP account error: ' + c.accountError;
+        acctErrEl.style.display = '';
       }
     }
 
     openModal('modalSetupComplete');
+  }
+
+  // Back-compat shim: any older callers expecting showCredentials() get the
+  // new modal too. The legacy callsite in this file no longer invokes it.
+  function showCredentials(c) {
+    showResult(c?.domain || '', { success: true, credentials: c, steps: [] });
   }
 
   function copyCredField(id) {
@@ -398,10 +531,93 @@ window.domains = (() => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
   });
 
+  // Close any open kebab menus when clicking outside. One handler, fires for
+  // every <details class="row-menu"> anywhere in the panel.
+  document.addEventListener('click', e => {
+    document.querySelectorAll('details.row-menu[open]').forEach(d => {
+      if (!d.contains(e.target)) d.removeAttribute('open');
+    });
+  }, true);
+  // Esc also closes
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('details.row-menu[open]').forEach(d => d.removeAttribute('open'));
+    }
+  });
+
+  // ── Domain Health detail modal ────────────────────────────────────────────
+
+  const HEALTH_LABELS = {
+    ssl:    'SSL Certificate',
+    dns:    'DNS Resolution',
+    mail:   'Mail Health',
+    backup: 'Backups',
+    disk:   'Disk Usage',
+    php:    'PHP',
+    errors: 'Recent Errors (24h)',
+  };
+  function _healthIcon(status) {
+    switch (status) {
+      case 'pass': return { ch: '✓', color: '#4ade80' };
+      case 'warn': return { ch: '!', color: '#f59e0b' };
+      case 'fail': return { ch: '✗', color: '#e05c6a' };
+      case 'skip': return { ch: '–', color: '#7a86a0' };
+      default:     return { ch: '·', color: '#7a86a0' };
+    }
+  }
+
+  function _escHealth(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  async function openHealth(domain) {
+    document.getElementById('healthModalDomain').textContent = domain;
+    document.getElementById('healthModalBody').innerHTML = '<div class="empty-state"><p>Running checks…</p></div>';
+    openModal('modalDomainHealth');
+
+    const data = await api.get(`/api/domains/${domain}/health`);
+    if (!data?.success) {
+      document.getElementById('healthModalBody').innerHTML = `<div class="empty-state"><p class="text-red">${_escHealth(data?.error || 'Failed')}</p></div>`;
+      return;
+    }
+    const r = data.data;
+
+    const summaryIcon = _healthIcon(r.summary);
+    const summaryLabel = r.summary === 'pass' ? 'All systems healthy'
+                       : r.summary === 'warn' ? 'Warnings present'
+                       : r.summary === 'fail' ? 'Failures need attention'
+                       : 'Mixed';
+
+    const checks = Object.entries(r.checks).map(([key, c]) => {
+      const icon = _healthIcon(c.status);
+      return `
+        <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);background:${icon.color}1a;border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${icon.color}33;color:${icon.color};font-weight:700;flex-shrink:0">${icon.ch}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;font-size:0.875rem;color:var(--text-primary)">${_escHealth(HEALTH_LABELS[key] || key)}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;word-break:break-word">${_escHealth(c.detail || '')}</div>
+          </div>
+          <span style="font-size:0.6875rem;color:${icon.color};text-transform:uppercase;letter-spacing:0.06em;font-weight:600">${c.status}</span>
+        </div>`;
+    }).join('');
+
+    document.getElementById('healthModalBody').innerHTML = `
+      <div style="display:inline-flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:${summaryIcon.color}1a;border:1px solid ${summaryIcon.color}40;border-radius:var(--radius-md);margin-bottom:var(--space-5)">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${summaryIcon.color};color:#fff;font-weight:700">${summaryIcon.ch}</span>
+        <div>
+          <div style="font-weight:600;font-size:0.9375rem;color:var(--text-primary)">${_escHealth(summaryLabel)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">checked ${new Date(r.checked_at).toLocaleString()}</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-2)">${checks}</div>
+    `;
+  }
+
   return {
     load, add, toggle, confirmDelete, checkDeleteInput, submitDelete,
     openConfig, saveConfig, openAddModal, updateDnsPreview, showCredentials,
     copyCredField, closeModal, openModal, openLogs, switchLogsTab,
     openRedirects, loadRedirects, addRedirect, deleteRedirect,
+    openHealth,
   };
 })();

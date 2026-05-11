@@ -1,8 +1,10 @@
 'use strict';
-const express = require('express');
-const crypto  = require('crypto');
-const mysql   = require('../lib/mysql');
-const router  = express.Router();
+const express     = require('express');
+const crypto      = require('crypto');
+const mysql       = require('../lib/mysql');
+const browser     = require('../lib/mysql-browser');
+const { requireAdmin } = require('../lib/auth');
+const router      = express.Router();
 
 function genPw() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -73,6 +75,52 @@ router.put('/users/:name/password', (req, res) => {
     mysql.changePassword(req.params.name, password);
     res.json({ success: true });
   } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── Database browser (phpMyAdmin-lite) ───────────────────────────────────────
+// Every endpoint here connects as MySQL root over the local socket. Hard-gated
+// to admins; non-admin users cannot reach these routes at all.
+
+router.get('/databases/:db/tables', requireAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await browser.listTables(req.params.db) });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+router.get('/databases/:db/tables/:table/structure', requireAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await browser.describeTable(req.params.db, req.params.table) });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+router.get('/databases/:db/tables/:table/rows', requireAdmin, async (req, res) => {
+  try {
+    const result = await browser.selectRows(req.params.db, req.params.table, {
+      limit:    req.query.limit,
+      offset:   req.query.offset,
+      orderBy:  req.query.orderBy,
+      orderDir: req.query.orderDir,
+      whereCol: req.query.whereCol,
+      whereVal: req.query.whereVal,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// Free-form SQL runner. Logged to the audit table so we have a record of
+// what an admin ran against which database.
+router.post('/databases/:db/query', requireAdmin, async (req, res) => {
+  try {
+    const { query } = req.body;
+    const result = await browser.executeQuery(req.params.db, query);
+    try {
+      const { audit } = require('../lib/db');
+      await audit(req.session.userId, req.session.username, 'mysql:query', req.params.db, query.slice(0, 500), req.ip);
+    } catch (_) {}
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
 });
 
 module.exports = router;

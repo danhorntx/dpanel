@@ -695,6 +695,22 @@ mark{background:rgba(245,200,66,.3);color:inherit;border-radius:2px;padding:0 2p
 .hidden{display:none!important}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:520px){.grid-2{grid-template-columns:1fr}}
+
+/* "v2.0" badge for new sections + new accordions */
+.badge-new{
+  display:inline-block;
+  padding:1px 6px;
+  margin-left:6px;
+  font-size:.62rem;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  vertical-align:middle;
+  background:linear-gradient(135deg,var(--accent),var(--accent-green));
+  color:#fff;
+  border-radius:99px;
+  box-shadow:0 1px 4px rgba(79,142,247,.4);
+}
 </style>
 </head>
 <body>
@@ -712,7 +728,7 @@ mark{background:rgba(245,200,66,.3);color:inherit;border-radius:2px;padding:0 2p
       <path d="M6 7h5c2.8 0 5 2.2 5 5s-2.2 5-5 5H6V7z" fill="white"/>
       <circle cx="17" cy="12" r="2" fill="white" opacity=".6"/>
     </svg>
-    <span>DPanel Guide</span>
+    <span>DPanel Guide <small style="font-size:.65em;color:var(--text-muted);font-weight:500;margin-left:6px">v2.0</small></span>
   </div>
   <button id="back-btn" onclick="goBack()">
     <i data-lucide="arrow-left" width="14" height="14"></i>Back to Panel
@@ -1104,6 +1120,29 @@ RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]</pre>
         </div>
       </div>
 
+      <div class="accordion" id="acc-db-browser">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="table" width="16" height="16" class="acc-icon"></i>
+          Database Browser <span class="badge-new">v2.0</span>
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>A built-in browser lets you explore any MariaDB database without leaving the panel. Click <strong>Browse</strong> next to a database in the MySQL section.</p>
+          <table class="guide-table">
+            <thead><tr><th>Tab</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Browse</strong></td><td>Paginated row view (50 / page). Column headers; row counts from <code>information_schema</code></td></tr>
+              <tr><td><strong>Structure</strong></td><td>Columns, types, keys, indexes, engine info</td></tr>
+              <tr><td><strong>SQL</strong></td><td>Free-form query runner — <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, DDL. Results capped at 500 rows</td></tr>
+            </tbody>
+          </table>
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Every SQL query you run is logged to the audit log (Users → Audit Log) — admin-only feature, audit-tracked for safety.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="accordion" id="acc-db-backup">
         <div class="accordion-header" onclick="toggleAcc(this)">
           <i data-lucide="download" width="16" height="16" class="acc-icon"></i>
@@ -1111,17 +1150,14 @@ RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]</pre>
           <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
         </div>
         <div class="accordion-body">
-          <p>DPanel provides one-click export (mysqldump) and import from SQL files. For automated backups, schedule a cron job:</p>
-          <div class="code-block">
-            <div class="code-lang">bash</div>
-            <pre># Daily backup to /opt/backups/db/
-0 3 * * * mysqldump -u dpanel -pdpanel_db_secret_2024 mydb \
-  | gzip > /opt/backups/db/mydb-$(date +\%F).sql.gz
-
-# Restore from backup
-gunzip -c /opt/backups/db/mydb-2024-01-15.sql.gz \
-  | mysql -u dpanel -pdpanel_db_secret_2024 mydb</pre>
-            <button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button>
+          <p>Database backups are managed through the <strong>Backups</strong> section in the sidebar. Each backup is a gzipped <code>mysqldump</code> stored in <code>/opt/dpanel/backups/</code>.</p>
+          <ol class="steps">
+            <li><div class="step-body">Backups → <strong>Create Backup</strong> → pick a domain and type <em>database</em> → enter database name.</div></li>
+            <li><div class="step-body">To restore: find the backup file in the list → <strong>Restore</strong> → confirm target database (or new name) → type <code>RESTORE</code> to confirm → <strong>Restore</strong>.</div></li>
+          </ol>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">"Drop and recreate target database first" is the default for cleanest restores. Without it, the import merges over the existing schema/data. Choose carefully.</div>
           </div>
         </div>
       </div>
@@ -1168,23 +1204,80 @@ gunzip -c /opt/backups/db/mydb-2024-01-15.sql.gz \
         </div>
       </div>
 
-      <div class="accordion" id="acc-apps">
+      <div class="accordion" id="acc-filemanager-features">
         <div class="accordion-header" onclick="toggleAcc(this)">
-          <i data-lucide="package" width="16" height="16" class="acc-icon"></i>
-          One-Click App Installer
+          <i data-lucide="sliders" width="16" height="16" class="acc-icon"></i>
+          File Manager — Advanced <span class="badge-new">v2.0</span>
           <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
         </div>
         <div class="accordion-body">
-          <p>DPanel ships with installers for popular web applications. The installer downloads the app, extracts it to the web root, creates a database, and pre-configures settings.</p>
+          <p>Beyond browse/edit/upload, the file manager handles:</p>
           <table class="guide-table">
-            <thead><tr><th>App</th><th>Installs</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Action</th><th>How</th></tr></thead>
             <tbody>
-              <tr><td>WordPress</td><td>Latest stable</td><td>Auto-configures wp-config.php</td></tr>
-              <tr><td>Joomla</td><td>Latest stable</td><td>DB + admin account created</td></tr>
-              <tr><td>Laravel</td><td>Latest via Composer</td><td>Requires PHP 8.1+</td></tr>
-              <tr><td>Static HTML</td><td>Blank template</td><td>index.html placeholder</td></tr>
+              <tr><td><strong>Change permissions</strong></td><td>Click the octal value in the Permissions column (e.g. <code>644</code>) → enter a new value → Apply. Validates 3–4 octal digits.</td></tr>
+              <tr><td><strong>Extract archive</strong></td><td>Click <strong>Extract</strong> on any <code>.zip</code> / <code>.tar.gz</code> / <code>.tgz</code> / <code>.tar.bz2</code> / <code>.tar</code> file → extracts to current directory.</td></tr>
+              <tr><td><strong>Bulk delete</strong></td><td>Check boxes on multiple files → bulk-action bar appears at top → <strong>Delete</strong>.</td></tr>
+              <tr><td><strong>Bulk move</strong></td><td>Check files → bulk-action bar → <strong>Move To…</strong> → enter destination path relative to docroot.</td></tr>
+              <tr><td><strong>Image preview</strong></td><td>Click any image filename (jpg/png/webp/svg/gif/bmp/ico) → opens an in-panel preview.</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-wordpress">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="globe-2" width="16" height="16" class="acc-icon"></i>
+          WordPress Installer
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>One-click WordPress install via WP-CLI. Apps → WordPress → pick a provisioned domain → fill in admin email + (optional) admin user/password → <strong>Install</strong>.</p>
+          <p>The installer:</p>
+          <ul>
+            <li>Downloads WordPress core</li>
+            <li>Creates a database + dedicated DB user with random password</li>
+            <li>Generates <code>wp-config.php</code></li>
+            <li>Runs the WordPress install with your admin credentials</li>
+          </ul>
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>v2.0:</strong> Install runs as a background job. The UI polls progress and shows live status. Typical install: 60–120 seconds.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-node-apps">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="terminal" width="16" height="16" class="acc-icon"></i>
+          Node / Python Apps <span class="badge-new">v2.0</span>
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Long-running Node.js / Python services managed by <strong>PM2</strong> with an Apache reverse proxy. Each app gets its own port (auto-allocated 3000–3999).</p>
+          <ol class="steps">
+            <li><div class="step-body">Upload your app code to a provisioned domain's docroot (file manager, SFTP, or Git deploy).</div></li>
+            <li><div class="step-body">Apps → <strong>+ Deploy App</strong> → name (alphanumeric), pick the domain, runtime (Node / Python / Custom), start command.</div></li>
+            <li><div class="step-body">Optionally add env vars (<code>KEY=value</code> per line). The <code>PORT</code> env var is auto-injected.</div></li>
+            <li><div class="step-body">DPanel rewrites the domain's vhost into a reverse proxy → starts the PM2 process → live within seconds.</div></li>
+          </ol>
+          <p><strong>App row controls:</strong> Restart, Start/Stop, Logs (live stdout+stderr), Destroy (stops process + restores plain vhost).</p>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">Your app <strong>must listen on <code>process.env.PORT</code></strong> (Node) or <code>$PORT</code> (Python/Bash). DPanel sets this — your app reading any other port will break the proxy.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-git-deploy">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="git-branch" width="16" height="16" class="acc-icon"></i>
+          Git Deploy
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Apps → Git Deploy → configure a repo URL + branch per domain. <strong>Deploy</strong> runs a clean clone or pull into the docroot.</p>
+          <p>For automated deploys, point a GitHub/GitLab webhook at the deploy URL (shown in the per-domain config dialog).</p>
         </div>
       </div>
     </section>
@@ -1539,7 +1632,378 @@ ORDER BY created_at DESC;</pre>
     </section>
 
     <!-- ═══════════════════════════════════════════════════════════
-         §10  SYSTEM
+         §10  SECURITY  (NEW v2.0)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-security" data-section="Security">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="shield-check" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Security <span class="badge-new">v2.0</span></div>
+          <div class="section-desc">Two-factor authentication, API keys, audit log, and brute-force protection</div>
+        </div>
+        <button class="mark-read-btn" data-section="security">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-2fa">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="smartphone" width="16" height="16" class="acc-icon"></i>
+          Two-Factor Authentication (TOTP)
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>DPanel supports RFC 6238 TOTP. Works with Google Authenticator, Authy, 1Password, Bitwarden — any standard authenticator app.</p>
+          <ol class="steps">
+            <li><div class="step-body">Settings → <strong>Two-Factor Authentication</strong> → <strong>Enable 2FA</strong>.</div></li>
+            <li><div class="step-body">Scan the QR code OR copy the secret string into your authenticator app.</div></li>
+            <li><div class="step-body"><strong>Important:</strong> save the secret in your password manager <em>before</em> verifying. This is your only recovery path.</div></li>
+            <li><div class="step-body">Enter the 6-digit code → <strong>Verify &amp; Enable</strong>.</div></li>
+          </ol>
+          <p>From then on, every login is two-step: password → TOTP code.</p>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>Lost your phone?</strong> SSH to the server and run:
+              <div class="code-block" style="margin-top:8px"><pre>mysql -e "UPDATE dpanel_users SET totp_enabled=0, totp_secret=NULL WHERE username='admin'" dpanel</pre><button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button></div>
+              Then log in with just the password and re-enroll.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-api-keys">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="key-round" width="16" height="16" class="acc-icon"></i>
+          API Keys
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>For external automation: CI/CD scripts, monitoring, backup pipelines. Each key is a bearer token shown <strong>once</strong> at creation — only its prefix is stored after that.</p>
+          <p><strong>Create:</strong> Settings → API Keys → <strong>Create New Key</strong>. Pick a scope:</p>
+          <table class="guide-table">
+            <thead><tr><th>Scope</th><th>Permissions</th></tr></thead>
+            <tbody>
+              <tr><td><strong>admin</strong></td><td>Full read + write — every <code>/api/*</code> endpoint</td></tr>
+              <tr><td><strong>read</strong></td><td>GET only — observability, monitoring, status checks</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Using a key:</strong></p>
+          <div class="code-block"><pre>curl -H "Authorization: Bearer dpk_..." \
+  https://panel.danhorntx.com/api/domains</pre><button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button></div>
+          <div class="callout info">
+            <i data-lucide="info" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body">API keys <strong>bypass 2FA</strong> — that's intentional for automation. Revoke any key the moment you suspect it's leaked. Every create/revoke is audit-logged.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-audit-log">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="scroll-text" width="16" height="16" class="acc-icon"></i>
+          Audit Log
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Every state-changing admin action gets a row in the audit log. Browse it at <strong>Users → Audit Log</strong> (bottom of the page). Filter by action substring (e.g. <code>backup:</code>, <code>apikey:</code>, <code>settings:</code>).</p>
+          <p>Each entry records: timestamp, user, action, target, detail, IP.</p>
+          <p><strong>Actions logged:</strong> user create/update/delete, settings changes (password / email / 2FA / timezone), API key create/revoke, SQL queries via DB browser, backup create/restore, app create/destroy, mail account changes.</p>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-brute-force">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="lock" width="16" height="16" class="acc-icon"></i>
+          Brute-force Protection
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Two layers, both automatic:</p>
+          <ol>
+            <li><strong>Rate limiter</strong> — 10 login attempts per IP per 15 minutes (HTTP 429 thereafter)</li>
+            <li><strong>DB-tracked lockout</strong> — 5 failed attempts in 15 minutes from one IP locks that IP for 15 more minutes. Tracked in <code>dpanel_login_attempts</code>.</li>
+          </ol>
+          <p>Login history is browsable at <strong>Users → Login Attempts</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §11  MAIL HEALTH & DELIVERABILITY  (NEW v2.0)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-mailhealth" data-section="Mail Health">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="activity-square" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Mail Health &amp; Deliverability <span class="badge-new">v2.0</span></div>
+          <div class="section-desc">The probe that tells you if your mail will actually land in inboxes</div>
+        </div>
+        <button class="mark-read-btn" data-section="mailhealth">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-mh-probe">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="radar" width="16" height="16" class="acc-icon"></i>
+          The Mail Health Probe
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>SPF / DKIM / DMARC can all be "configured" but mail still ends up in spam. The probe checks every prerequisite real-world receivers (Gmail, Microsoft, Yahoo) actually look at:</p>
+          <table class="guide-table">
+            <thead><tr><th>Check</th><th>What it tests</th></tr></thead>
+            <tbody>
+              <tr><td><strong>rdns</strong></td><td>PTR record exists for the server IP AND forward-resolves back to the same IP</td></tr>
+              <tr><td><strong>helo</strong></td><td>Postfix HELO hostname resolves to the server IP via public DNS</td></tr>
+              <tr><td><strong>mail-a</strong></td><td><code>mail.&lt;domain&gt;</code> A record points at the server</td></tr>
+              <tr><td><strong>mx</strong></td><td>MX record present, target resolves to the server</td></tr>
+              <tr><td><strong>spf</strong></td><td>SPF v1 record published, authorizes our IP, ends with <code>~all</code> or <code>-all</code></td></tr>
+              <tr><td><strong>dkim</strong></td><td>DKIM TXT at <code>mail._domainkey.&lt;domain&gt;</code> matches the local OpenDKIM key</td></tr>
+              <tr><td><strong>dmarc</strong></td><td>DMARC v1 published with a real policy (not just <code>p=none</code>)</td></tr>
+              <tr><td><strong>mta-sts</strong></td><td>MTA-STS DNS announces policy id, HTTPS endpoint serves a valid policy file</td></tr>
+              <tr><td><strong>tls-rpt</strong></td><td>TLS-RPT TXT publishes a reporting address</td></tr>
+              <tr><td><strong>tls-cert</strong></td><td>Dovecot serves a valid (non-expired, hostname-matching) cert for <code>mail.&lt;domain&gt;</code></td></tr>
+              <tr><td><strong>rbl</strong></td><td>IP not listed on Spamhaus, Barracuda, SpamCop, or SORBS</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Run a probe:</strong> Mail → <strong>Health</strong> tab → pick domain → <strong>Run Probe</strong>. Takes 5–10 seconds.</p>
+          <p>A daily cron at 4am UTC probes every mail-enabled domain. Results stored in <code>dpanel_mail_health</code> for trending. Probe failures trigger an email alert (see Notifications).</p>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-mh-fixing">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="wrench" width="16" height="16" class="acc-icon"></i>
+          Common Failures &amp; How to Fix
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <table class="guide-table">
+            <thead><tr><th>Failure</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td>rdns fail</td><td>Set the PTR for your server IP at your VPS provider's control panel (Contabo / DigitalOcean / Hetzner) to <code>mail.&lt;your-domain&gt;</code></td></tr>
+              <tr><td>helo mismatch</td><td>Set <code>DPANEL_MAIL_HOSTNAME=mail.&lt;domain&gt;</code> in <code>/opt/dpanel/.env</code>, run <code>configure-mail.sh</code></td></tr>
+              <tr><td>rbl listing</td><td>Visit the listing service (URL in detail) to request delisting; or ask your provider for a different IP. Contabo IPs are often pre-listed</td></tr>
+              <tr><td>dkim mismatch</td><td>Mail → DKIM tab → <strong>Repair</strong>. Republishes the key from local <code>/etc/opendkim/keys/</code> to DNS</td></tr>
+              <tr><td>tls-cert fail</td><td>SSL → AutoSSL → enter <code>mail.&lt;domain&gt;</code> to (re-)issue a cert; Dovecot SNI picks it up automatically</td></tr>
+              <tr><td>mta-sts unreachable</td><td>Check Apache vhost for <code>mta-sts.&lt;domain&gt;</code> exists and the cert is valid</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-mh-dmarc">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="file-search" width="16" height="16" class="acc-icon"></i>
+          DMARC Aggregate Reports
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Receiving MTAs (Gmail, Microsoft, Yahoo, Mail.ru, etc.) send daily aggregate DMARC reports to whatever address your <code>rua=</code> tag points at. DPanel's processor reads, parses, and stores them automatically.</p>
+          <p><strong>Setup:</strong></p>
+          <ol class="steps">
+            <li><div class="step-body">Create a mailbox like <code>dmarc@yourdomain.com</code> (Mail → Accounts → Add).</div></li>
+            <li><div class="step-body">Point all your domains' <code>rua=</code> records at it. For cross-domain rua, add <code>&lt;other-domain&gt;._report._dmarc.yourdomain.com TXT "v=DMARC1"</code> on the receiving domain (RFC 7489 §7.1).</div></li>
+            <li><div class="step-body">Add to <code>/opt/dpanel/.env</code>:
+              <div class="code-block" style="margin-top:8px"><pre>DMARC_INBOX_EMAIL=dmarc@yourdomain.com
+DMARC_INBOX_PASSWORD=&lt;mailbox-password&gt;</pre><button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button></div>
+            </div></li>
+            <li><div class="step-body"><code>systemctl restart dpanel</code>. Daily 4:30am cron parses anything new.</div></li>
+          </ol>
+          <p>Reports are stored in <code>dpanel_dmarc_reports</code>. Each row: org_name, report_id, domain, date range, total/pass/fail counts, full per-record JSON.</p>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-mh-seedtest">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="send" width="16" height="16" class="acc-icon"></i>
+          Seed List Deliverability Test
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The probe checks technical config. The seed test answers the only question that ultimately matters: <em>did this message actually land in someone's inbox?</em></p>
+          <p>You configure 1–3 throwaway email accounts (Gmail, Outlook, Yahoo) with app passwords in <code>/opt/dpanel/.env</code>:</p>
+          <div class="code-block"><pre>DPANEL_SEED_GMAIL=your-test@gmail.com
+DPANEL_SEED_GMAIL_PASSWORD=&lt;16-char-app-password&gt;
+DPANEL_SEED_OUTLOOK=your-test@outlook.com
+DPANEL_SEED_OUTLOOK_PASSWORD=&lt;app-password&gt;
+DPANEL_SEED_YAHOO=your-test@yahoo.com
+DPANEL_SEED_YAHOO_PASSWORD=&lt;app-password&gt;</pre><button class="copy-btn" onclick="copyCode(this)"><i data-lucide="copy" width="12" height="12"></i>Copy</button></div>
+          <p>Then trigger via <code>POST /api/mail/seedtest/run</code> (or the UI button when surfaced). Each run:</p>
+          <ol>
+            <li>Sends a tagged message to all configured seeds</li>
+            <li>Waits 2 minutes for propagation</li>
+            <li>IMAP-searches each seed's Inbox + Spam folder for the tag</li>
+            <li>Records where each one landed: <code>inbox</code>, <code>spam</code>, <code>missing</code>, or <code>error</code></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §12  BACKUPS & RECOVERY  (NEW v2.0)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-backups" data-section="Backups">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="archive" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Backups &amp; Recovery</div>
+          <div class="section-desc">Files, databases, and restore — with type-RESTORE confirmation</div>
+        </div>
+        <button class="mark-read-btn" data-section="backups">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-bk-types">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="layers" width="16" height="16" class="acc-icon"></i>
+          What Can Be Backed Up
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <table class="guide-table">
+            <thead><tr><th>Type</th><th>Format</th><th>Contents</th></tr></thead>
+            <tbody>
+              <tr><td><strong>files</strong></td><td><code>&lt;domain&gt;_files_&lt;ts&gt;.tar.gz</code></td><td>Entire domain docroot, tar-gzipped</td></tr>
+              <tr><td><strong>database</strong></td><td><code>&lt;db&gt;_db_&lt;ts&gt;.sql.gz</code></td><td><code>mysqldump --single-transaction --routines --triggers</code> output, gzipped</td></tr>
+              <tr><td><strong>all</strong></td><td>both above</td><td>One files tarball + one DB dump in a single operation</td></tr>
+            </tbody>
+          </table>
+          <p>Stored in <code>/opt/dpanel/backups/</code>, sorted newest-first in the UI.</p>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-bk-restore">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="upload-cloud" width="16" height="16" class="acc-icon"></i>
+          Restoring from a Backup
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Backups → find the row → <strong>Restore</strong>. A confirmation modal asks for the target + a <code>RESTORE</code> typed confirmation.</p>
+          <p><strong>Files:</strong> pick target domain. The <em>Wipe target docroot first</em> checkbox (default on) clears the docroot, then extracts the tar — guarantees a clean state matching the backup exactly. Unchecked, tar merges over existing files.</p>
+          <p><strong>Databases:</strong> pick target database name. The <em>Drop and recreate target database first</em> checkbox (default on) drops and creates the DB cleanly before importing. Unchecked, the import merges schema/data.</p>
+          <div class="callout warn">
+            <i data-lucide="alert-triangle" width="16" height="16" class="callout-icon"></i>
+            <div class="callout-body"><strong>Restores overwrite current state.</strong> If you might need a rollback point, take a fresh backup <em>before</em> restoring.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-bk-cleanup">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="trash-2" width="16" height="16" class="acc-icon"></i>
+          Cleanup &amp; Retention
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>The <strong>Cleanup</strong> action keeps the most recent N backups per domain (default 10) and deletes older ones. Manual trigger only — no automatic retention cron yet.</p>
+          <p>Disk usage of <code>/opt/dpanel/backups/</code> is visible at the top of the section.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §13  NOTIFICATIONS  (NEW v2.0)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-notifications" data-section="Notifications">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="bell" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Notifications <span class="badge-new">v2.0</span></div>
+          <div class="section-desc">Email alerts for cert expiry, mail health failures, backups, and admin logins</div>
+        </div>
+        <button class="mark-read-btn" data-section="notifications">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-nt-triggers">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="zap" width="16" height="16" class="acc-icon"></i>
+          What Triggers an Alert
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <table class="guide-table">
+            <thead><tr><th>Trigger</th><th>When</th><th>Cadence</th></tr></thead>
+            <tbody>
+              <tr><td>SSL cert &lt; 14 days from expiry</td><td>Daily 5am UTC cron</td><td>Once per cert per 24h</td></tr>
+              <tr><td>Mail Health probe failing</td><td>Daily 4am UTC cron</td><td>Once per domain per 24h</td></tr>
+              <tr><td>Backup failure</td><td>Immediately on error</td><td>Once per backup-target per 24h</td></tr>
+              <tr><td>Admin login from new IP</td><td>Immediately on first sighting</td><td>Once per user+IP combo</td></tr>
+            </tbody>
+          </table>
+          <p>All sends go through local Postfix (DKIM-signed). Sender is <code>noreply@&lt;hostname&gt;</code>; recipient is the configured admin email (Settings → Admin Contact Email).</p>
+          <p>Recent alert history is visible in Settings → Notifications → Recent (last 50 sends with status).</p>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-nt-test">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="mail-check" width="16" height="16" class="acc-icon"></i>
+          Test the Pipeline
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <p>Settings → Notifications → <strong>Send Test Email</strong>. Bypasses the 24h dedupe, sends a confirmation message to the admin email. If it doesn't arrive: run a Mail Health probe on the panel's own domain, fix what's red, retry.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §14  MOBILE  (NEW v2.0)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section class="guide-section" id="sec-mobile" data-section="Mobile">
+      <div class="section-header">
+        <div class="section-icon"><i data-lucide="smartphone-charging" width="22" height="22"></i></div>
+        <div>
+          <div class="section-title">Mobile Experience <span class="badge-new">v2.0</span></div>
+          <div class="section-desc">Using DPanel comfortably on a phone or tablet</div>
+        </div>
+        <button class="mark-read-btn" data-section="mobile">
+          <i data-lucide="check" width="13" height="13"></i><span>Mark read</span>
+        </button>
+      </div>
+
+      <div class="accordion open" id="acc-mob-tour">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="navigation" width="16" height="16" class="acc-icon"></i>
+          What's Different on Mobile
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ul>
+            <li>Below 768px the sidebar hides; a <strong>hamburger button</strong> (☰) appears in the topbar to toggle it.</li>
+            <li>Topbar tightens: hostname and clock hide below 768px, Webmail button hides below 600px.</li>
+            <li>Tables progressively hide low-priority columns. Domains drops Disk → Document Root → SSL as the viewport narrows.</li>
+            <li>Modals slide up from the bottom as full-width sheets. Cancel sits at the top, primary action at the bottom (thumb reach).</li>
+            <li>Touch devices get larger tap targets (32–38px minimum) on small buttons.</li>
+            <li>Long file paths, cert subjects, and other mono-text wrap on any boundary instead of overflowing.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="accordion" id="acc-mob-tips">
+        <div class="accordion-header" onclick="toggleAcc(this)">
+          <i data-lucide="lightbulb" width="16" height="16" class="acc-icon"></i>
+          Tips
+          <i data-lucide="chevron-right" width="16" height="16" class="acc-chevron"></i>
+        </div>
+        <div class="accordion-body">
+          <ul>
+            <li><strong>Save to home screen</strong> for a faster launch — works on iOS Safari + Chrome Android.</li>
+            <li>The <strong>DB Browser</strong> works on phones but its table-list sidebar stacks above the main pane (260px sidebar would be unusable otherwise).</li>
+            <li>If you need to type a lot (SQL queries, Apache vhost configs), use the <strong>full-screen text editor</strong> by tapping the file → <em>Edit</em>. The textarea fills the modal.</li>
+            <li>For Terminal access on mobile, a real SSH client (Termius, Blink) is generally better than the browser-based one.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         §15  SYSTEM
     ═══════════════════════════════════════════════════════════════ -->
     <section class="guide-section" id="sec-system" data-section="System">
       <div class="section-header">
@@ -1737,21 +2201,26 @@ const NAV = [
       { label: 'Web Hosting',  href: '#sec-hosting',   icon: 'globe' },
       { label: 'Databases',    href: '#sec-databases', icon: 'database' },
       { label: 'Files & Apps', href: '#sec-files',     icon: 'folder-open' },
+      { label: 'Backups',      href: '#sec-backups',   icon: 'archive' },
     ]
   },
   {
     group: 'Communication',
     items: [
-      { label: 'Mail Server', href: '#sec-mail',    icon: 'mail' },
-      { label: 'Webmail',     href: '#sec-webmail', icon: 'inbox' },
+      { label: 'Mail Server',           href: '#sec-mail',       icon: 'mail' },
+      { label: 'Mail Health & DMARC',   href: '#sec-mailhealth', icon: 'activity-square' },
+      { label: 'Webmail',               href: '#sec-webmail',    icon: 'inbox' },
+      { label: 'Notifications',         href: '#sec-notifications', icon: 'bell' },
     ]
   },
   {
     group: 'Admin',
     items: [
-      { label: 'Tools',          href: '#sec-tools',  icon: 'wrench' },
-      { label: 'Access & Users', href: '#sec-access', icon: 'users' },
-      { label: 'System',         href: '#sec-system', icon: 'settings' },
+      { label: 'Tools',          href: '#sec-tools',    icon: 'wrench' },
+      { label: 'Access & Users', href: '#sec-access',   icon: 'users' },
+      { label: 'Security',       href: '#sec-security', icon: 'shield-check' },
+      { label: 'System',         href: '#sec-system',   icon: 'settings' },
+      { label: 'Mobile',         href: '#sec-mobile',   icon: 'smartphone-charging' },
     ]
   }
 ];

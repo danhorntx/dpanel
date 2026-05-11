@@ -234,12 +234,16 @@
 
 <div class="app-shell">
 
+  <!-- Mobile sidebar backdrop — tap to dismiss the slid-in sidebar -->
+  <div class="sidebar-backdrop" onclick="document.querySelector('.sidebar').classList.remove('open')"></div>
+
   <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-mark">D/</div>
       <span class="sidebar-logo-text">DPanel</span>
-      <span class="sidebar-logo-version">v1.0</span>
+      <button type="button" class="sidebar-logo-version sidebar-version-btn" title="View changelog"
+              onclick="document.getElementById('modalChangelog').classList.add('open')">v2.0</button>
     </div>
 
     <!-- [FEATURE] nav now has role + label for screen readers -->
@@ -536,6 +540,17 @@
     <div class="sidebar-resize-handle" id="sidebarResizeHandle" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
+      <!-- User Guide link — always visible, opens admin-guide.html in a new tab -->
+      <a href="/admin-guide.html" target="_blank" rel="noopener" class="sidebar-guide-link" title="DPanel User Guide">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h3A2.5 2.5 0 0 1 9 4.5V14a1 1 0 0 0-1-1H3.5A1.5 1.5 0 0 1 2 11.5v-8zM14 3.5a1.5 1.5 0 0 0-1.5-1.5h-3A2.5 2.5 0 0 0 7 4.5V14a1 1 0 0 1 1-1h4.5a1.5 1.5 0 0 0 1.5-1.5v-8z"/>
+        </svg>
+        <span>User Guide</span>
+        <svg style="margin-left:auto;width:11px;height:11px;color:var(--text-muted);flex-shrink:0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M6 3h7v7M13 3 4 12"/>
+        </svg>
+      </a>
+
       <div class="sidebar-footer-row">
         <button class="sidebar-collapse-btn" id="sidebarCollapseBtn"
           aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar (C)">
@@ -568,6 +583,13 @@
 
   <!-- ── Topbar ────────────────────────────────────────────────────────── -->
   <header class="topbar">
+    <!-- Hamburger — only visible on mobile (CSS-controlled). Toggles the sidebar. -->
+    <button type="button" class="topbar-hamburger" id="topbarHamburger"
+            aria-label="Open menu" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+      <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 4h12M2 8h12M2 12h12"/>
+      </svg>
+    </button>
     <div class="topbar-breadcrumb">
       <span>DPanel</span>
       <span class="topbar-sep">/</span>
@@ -579,7 +601,7 @@
           <option value="">All domains</option>
         </select>
       </div>
-      <button type="button" class="btn btn-ghost btn-sm" style="font-size:.75rem" title="Open webmail" onclick="window.open(window.location.origin+'/webmail','_blank')">✉ Webmail</button>
+      <button type="button" class="btn btn-ghost btn-sm topbar-webmail-btn" style="font-size:.75rem" title="Open webmail" onclick="window.open(window.location.origin+'/webmail','_blank')">✉ Webmail</button>
       <span class="topbar-hostname" id="topbarHostname">loading...</span>
       <span class="topbar-clock" id="topbarClock"></span>
     </div>
@@ -695,6 +717,7 @@
             <col class="col-domain">
             <col class="col-docroot">
             <col class="col-ssl">
+            <col class="col-disk">
             <col class="col-status">
             <col class="col-actions">
           </colgroup>
@@ -709,7 +732,7 @@
             </tr>
           </thead>
           <tbody id="domainsTable">
-            <tr><td colspan="7"><div class="empty-state"><p>Loading domains...</p></div></td></tr>
+            <tr><td colspan="6"><div class="empty-state"><p>Loading domains...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -795,13 +818,29 @@
       </div>
       <div class="card" style="position:relative">
         <div style="padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:0.8125rem" id="filesBreadcrumb">root</div>
+
+        <!-- Bulk action bar — hidden by default, shown when items are checked -->
+        <div id="filesBulkBar" style="display:none;padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);background:rgba(79,142,247,0.08);display:flex;align-items:center;gap:var(--space-3);font-size:0.8125rem">
+          <span id="filesBulkCount" style="color:var(--text-secondary);font-weight:500"></span>
+          <div style="flex:1"></div>
+          <button class="btn btn-ghost btn-xs" onclick="window.filesMgr.bulkMove()">Move To…</button>
+          <button class="btn btn-danger btn-xs" onclick="window.filesMgr.bulkDelete()">Delete</button>
+        </div>
+
         <div id="filesLoadingOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;border-radius:var(--radius-lg);z-index:10">
           <span style="color:var(--text-primary);font-size:0.875rem">Loading…</span>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th style="text-align:right">Actions</th></tr></thead>
-            <tbody id="filesTable"><tr><td colspan="4"><div class="empty-state"><p>Select a domain to browse.</p></div></td></tr></tbody>
+            <thead><tr>
+              <th style="width:30px"></th>
+              <th>Name</th>
+              <th style="width:90px">Permissions</th>
+              <th>Size</th>
+              <th>Modified</th>
+              <th style="text-align:right">Actions</th>
+            </tr></thead>
+            <tbody id="filesTable"><tr><td colspan="6"><div class="empty-state"><p>Select a domain to browse.</p></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -812,9 +851,28 @@
       <div class="page-header">
         <div class="page-header-left">
           <h2>Apps</h2>
-          <p>WordPress installs and Git deployments</p>
+          <p>WordPress, Git deploys, and Node / Python apps</p>
         </div>
       </div>
+
+      <!-- Node / Python Apps -->
+      <div class="card" style="margin-bottom:var(--space-5)">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3 style="font-size:0.9375rem;font-weight:600;margin:0">Node / Python Apps</h3>
+            <p style="font-size:0.8125rem;color:var(--text-muted);margin:2px 0 0">Long-running processes managed by PM2, reverse-proxied via Apache</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="window.appsMgr.openNewAppModal()">+ Deploy App</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr>
+            <th>Name</th><th>Domain</th><th>Status</th><th>Port</th><th>Uptime</th><th>Mem</th><th style="text-align:right">Actions</th>
+          </tr></thead>
+            <tbody id="nodeAppsTable"><tr><td colspan="7"><div class="empty-state"><p>Loading…</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- WordPress -->
       <div class="card" style="margin-bottom:var(--space-5)">
         <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
@@ -1015,6 +1073,7 @@
         <div class="tab active" data-tab="accounts" onclick="window.mail.switchTab('accounts', this)">Accounts</div>
         <div class="tab" data-tab="forwards" onclick="window.mail.switchTab('forwards', this)">Forwards</div>
         <div class="tab" data-tab="dkim"     onclick="window.mail.switchTab('dkim', this)">DKIM &amp; DNS</div>
+        <div class="tab" data-tab="health"   onclick="window.mail.switchTab('health', this)">Health</div>
       </div>
 
       <div class="tab-panel active" id="tab-mail-accounts">
@@ -1037,6 +1096,37 @@
 
       <div class="tab-panel" id="tab-mail-dkim">
         <div class="empty-state"><p>Loading…</p></div>
+      </div>
+
+      <!-- ── Mail Health ──────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-mail-health">
+        <div style="display:flex;gap:var(--space-3);align-items:flex-end;margin-bottom:var(--space-5);flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <label style="display:block;font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Domain</label>
+            <select id="healthDomainSelect" class="input" style="width:100%">
+              <option value="">Loading…</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="healthRunBtn" onclick="window.mail.runHealthProbe()" disabled>Run Probe</button>
+        </div>
+
+        <!-- Summary -->
+        <div id="healthSummary" style="display:none;margin-bottom:var(--space-5)">
+          <div id="healthSummaryBadge" style="margin-bottom:var(--space-3)"></div>
+          <div style="display:flex;gap:var(--space-4);font-size:0.8125rem;color:var(--text-muted);flex-wrap:wrap">
+            <div>Server: <code style="color:var(--text-secondary)" id="healthServerIp"></code></div>
+            <div>HELO:   <code style="color:var(--text-secondary)" id="healthHelo"></code></div>
+            <div>Checked: <span id="healthCheckedAt"></span></div>
+          </div>
+        </div>
+
+        <!-- Check list -->
+        <ul id="healthChecksList" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)"></ul>
+
+        <!-- Empty state -->
+        <div id="healthEmpty" class="empty-state" style="margin-top:var(--space-6)">
+          <p>Pick a mail-enabled domain and click <strong>Run Probe</strong> to check rDNS, HELO match, SPF/DKIM/DMARC, MTA-STS, TLS, and RBL listings.</p>
+        </div>
       </div>
     </section>
 
@@ -1325,6 +1415,72 @@
 
       <div style="max-width:520px;display:flex;flex-direction:column;gap:var(--space-6)">
 
+        <!-- Admin email card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">Admin Contact Email</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-5)">Used for Let's Encrypt cert registration and (future) panel alerts. Leave blank to fall back to <code>admin@&lt;domain&gt;</code> per request — not recommended.</p>
+            <div class="form-group" style="margin-bottom:var(--space-5)">
+              <label>Email Address</label>
+              <input type="email" class="input" id="settingsAdminEmail" placeholder="you@example.com" autocomplete="email">
+              <span class="field-error" id="settingsEmailError" style="display:none"></span>
+              <span class="field-success" id="settingsEmailOk" style="display:none;color:var(--text-success);font-size:0.8125rem">Saved.</span>
+            </div>
+            <button class="btn btn-primary" id="settingsEmailBtn" onclick="window.settings.saveEmail()">Save Email</button>
+          </div>
+        </div>
+
+        <!-- Two-Factor Auth card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">Two-Factor Authentication</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-5)">Adds a 6-digit code from your authenticator app on top of your password. Strongly recommended for any panel exposed to the internet.</p>
+
+            <!-- 2FA: not enrolled -->
+            <div id="settings2faOff">
+              <div style="margin-bottom:var(--space-4)">
+                <span class="badge badge-muted">2FA is off</span>
+              </div>
+              <button class="btn btn-primary" id="settings2faEnableBtn" onclick="window.settings.start2faSetup()">Enable 2FA</button>
+            </div>
+
+            <!-- 2FA: setup in progress (QR + verify input) -->
+            <div id="settings2faSetup" style="display:none">
+              <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">Scan this code in <strong>Google Authenticator / Authy / 1Password / Bitwarden</strong>, then enter the 6-digit code it shows to confirm.</p>
+              <div style="display:flex;gap:var(--space-5);align-items:flex-start;margin-bottom:var(--space-5);flex-wrap:wrap">
+                <div id="settings2faQr" style="width:180px;height:180px;background:#fff;padding:var(--space-3);border-radius:var(--radius-md)"></div>
+                <div style="flex:1;min-width:200px">
+                  <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Or enter manually</div>
+                  <div style="font-family:var(--font-mono);font-size:0.8125rem;color:var(--text-primary);background:var(--bg-elevated);padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--border);word-break:break-all" id="settings2faSecret">…</div>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:var(--space-4)">
+                <label>Code from authenticator</label>
+                <input type="text" class="input" id="settings2faCode" placeholder="123456" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off">
+                <span class="field-error" id="settings2faError" style="display:none"></span>
+              </div>
+              <div style="display:flex;gap:var(--space-2)">
+                <button class="btn btn-primary" onclick="window.settings.verify2faSetup()">Verify &amp; Enable</button>
+                <button class="btn btn-ghost"   onclick="window.settings.cancel2faSetup()">Cancel</button>
+              </div>
+            </div>
+
+            <!-- 2FA: enrolled -->
+            <div id="settings2faOn" style="display:none">
+              <div style="margin-bottom:var(--space-4)">
+                <span class="badge badge-green"><span class="badge-dot"></span>2FA is enabled</span>
+              </div>
+              <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">To disable 2FA, enter your current password below.</p>
+              <div class="form-group" style="margin-bottom:var(--space-4)">
+                <label>Current Password</label>
+                <input type="password" class="input" id="settings2faDisablePw" placeholder="Your password" autocomplete="current-password">
+                <span class="field-error" id="settings2faDisableError" style="display:none"></span>
+              </div>
+              <button class="btn btn-danger" onclick="window.settings.disable2fa()">Disable 2FA</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Change password card -->
         <div class="card-outer">
           <div class="card-inner">
@@ -1345,6 +1501,36 @@
               <span class="field-error" id="settingsPwError" style="display:none"></span>
             </div>
             <button class="btn btn-primary" id="settingsSaveBtn" onclick="window.settings.changePassword()">Update Password</button>
+          </div>
+        </div>
+
+        <!-- API Keys card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">API Keys</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-5)">Bearer tokens for external automation. Send as <code>Authorization: Bearer dpk_…</code> on any <code>/api/*</code> endpoint. Each key is shown once at creation — store it in your password manager immediately.</p>
+
+            <div id="settingsApiKeysList" style="margin-bottom:var(--space-4)"></div>
+
+            <button class="btn btn-primary" onclick="window.settings.openNewApiKey()">Create New Key</button>
+          </div>
+        </div>
+
+        <!-- Notifications card -->
+        <div class="card-outer">
+          <div class="card-inner">
+            <h3 style="margin-bottom:var(--space-1)">Notifications</h3>
+            <p style="font-size:0.875rem;margin-bottom:var(--space-4)">DPanel emails the admin contact address when:</p>
+            <ul style="font-size:0.8125rem;color:var(--text-secondary);margin:0 0 var(--space-4) var(--space-5);padding:0">
+              <li>An SSL cert is within 14 days of expiry (daily 5am UTC)</li>
+              <li>The Mail Health probe fails for a domain (daily 4am UTC)</li>
+              <li>A backup fails (immediate)</li>
+              <li>An admin signs in from a previously-unseen IP (immediate)</li>
+            </ul>
+            <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-4)">Duplicate alerts are suppressed for 24h.</p>
+            <button class="btn btn-ghost btn-sm" onclick="window.settings.sendTestNotification()">Send Test Email</button>
+
+            <div id="settingsRecentNotifs" style="margin-top:var(--space-5)"></div>
           </div>
         </div>
 
@@ -2092,11 +2278,19 @@
         <input type="password" class="input" id="addAccessConfirm" placeholder="Repeat password" autocomplete="new-password">
       </div>
       <div class="form-group" style="margin-bottom:var(--space-4)">
-        <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:400">
-          <input type="checkbox" id="addAccessAllowShell" style="accent-color:var(--accent)">
-          Allow SSH shell access (in addition to SFTP)
-        </label>
-        <span class="field-hint">Leave unchecked for SFTP file transfers only — more secure.</span>
+        <label>Access Type</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-1)">
+          <label id="addAccessTypeSshLabel" style="display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--accent);background:var(--accent-dim);cursor:pointer;transition:border-color .15s,background .15s">
+            <input type="radio" name="addAccessType" id="addAccessTypeSsh" value="ssh" checked style="display:none" onchange="window.ftp.onAccessTypeChange()">
+            <span style="font-size:0.875rem;font-weight:600;color:var(--accent)">SSH + SFTP</span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">Full terminal &amp; file access</span>
+          </label>
+          <label id="addAccessTypeSftpLabel" style="display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:border-color .15s,background .15s">
+            <input type="radio" name="addAccessType" id="addAccessTypeSftp" value="sftp" style="display:none" onchange="window.ftp.onAccessTypeChange()">
+            <span style="font-size:0.875rem;font-weight:500">SFTP only</span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">File transfers only</span>
+          </label>
+        </div>
       </div>
       <div class="form-group" style="margin-bottom:0">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1)">
@@ -2129,7 +2323,24 @@
     </div>
     <div class="modal-body">
       <span class="field-error" id="editAccessError" style="display:none;margin-bottom:var(--space-4)"></span>
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-5)" id="editAccessShellBadge"></div>
+
+      <!-- Access Type toggle section -->
+      <div style="padding-bottom:var(--space-5);border-bottom:1px solid var(--border);margin-bottom:var(--space-5)">
+        <h4 style="font-size:0.875rem;margin-bottom:var(--space-3)">Access Type</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-3)" id="editAccessTypeCards">
+          <div id="editAccessCardSsh" style="display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:border-color .15s,background .15s" onclick="document.getElementById('editAccessShellToggle').checked=true;window.ftp._renderShellToggle()">
+            <span style="font-size:0.875rem;font-weight:600">SSH + SFTP</span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">Full terminal &amp; file access</span>
+          </div>
+          <div id="editAccessCardSftp" style="display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-md);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:border-color .15s,background .15s" onclick="document.getElementById('editAccessShellToggle').checked=false;window.ftp._renderShellToggle()">
+            <span style="font-size:0.875rem;font-weight:500">SFTP only</span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">File transfers only</span>
+          </div>
+        </div>
+        <input type="checkbox" id="editAccessShellToggle" style="display:none">
+        <div style="display:none" id="editAccessShellLabel"></div>
+        <button class="btn btn-secondary btn-sm" id="editSaveShellBtn" onclick="window.ftp.toggleShell()">Save Access Type</button>
+      </div>
 
       <!-- Change Password section -->
       <div style="padding-bottom:var(--space-5);border-bottom:1px solid var(--border);margin-bottom:var(--space-5)">
@@ -2175,15 +2386,24 @@
 
 <!-- ════════════════ Setup Complete modal ════════════════ -->
 <div class="modal-backdrop" id="modalSetupComplete">
-  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+  <div class="modal-outer" style="max-width:560px"><div class="modal-inner">
     <div class="modal-header">
       <div>
-        <h3>Domain Setup Complete</h3>
+        <h3 id="credHeader">Domain Setup Complete</h3>
         <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px" id="credDomain"></div>
       </div>
       <button class="modal-close" onclick="window.domains.closeModal('modalSetupComplete')">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- Top-level error banner (shown only on failure) -->
+      <div id="credTopError" class="field-error" style="display:none;margin-bottom:var(--space-4);padding:var(--space-3) var(--space-4);background:rgba(224,92,106,0.08);border:1px solid rgba(224,92,106,0.3);border-radius:var(--radius-md)"></div>
+
+      <!-- Provisioning steps timeline -->
+      <div id="credSteps" style="margin-bottom:var(--space-5);display:none">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-3);text-transform:uppercase;letter-spacing:0.06em">Provisioning steps</div>
+        <ul id="credStepsList" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)"></ul>
+      </div>
 
       <!-- SSL status -->
       <div style="margin-bottom:var(--space-4)" id="credSSLStatus"></div>
@@ -2245,6 +2465,473 @@
     </div>
     <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
       <button class="btn btn-primary" onclick="window.domains.closeModal('modalSetupComplete')">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Deploy Node/Python App modal ════════════════ -->
+<div class="modal-backdrop" id="modalNewApp">
+  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Deploy App</h3>
+      <button class="modal-close" onclick="window.appsMgr.closeNewAppModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-4)">DPanel replaces the domain's vhost with a reverse proxy and starts the process under PM2. Your app must listen on the <code>PORT</code> env var that gets injected automatically.</p>
+      <div class="form-group">
+        <label>App Name</label>
+        <input type="text" class="input" id="newAppName" placeholder="my-api" maxlength="64" style="font-family:var(--font-mono)">
+      </div>
+      <div class="form-group">
+        <label>Domain</label>
+        <select class="input" id="newAppDomain"></select>
+        <span style="font-size:0.75rem;color:var(--text-muted)">The domain's existing vhost will be replaced by a reverse proxy.</span>
+      </div>
+      <div class="form-group">
+        <label>Runtime</label>
+        <select class="input" id="newAppRuntime" onchange="window.appsMgr.onRuntimeChange()">
+          <option value="node">Node.js</option>
+          <option value="python">Python</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Start Command</label>
+        <input type="text" class="input" id="newAppStartCmd" placeholder="npm start" style="font-family:var(--font-mono)">
+        <span style="font-size:0.75rem;color:var(--text-muted)">Runs from the domain's docroot. Use the <code>$PORT</code> env var your app gets injected with.</span>
+      </div>
+      <div class="form-group">
+        <label>Environment Variables (optional, KEY=value, one per line)</label>
+        <textarea class="input" id="newAppEnv" rows="3" style="font-family:var(--font-mono);font-size:0.8125rem" placeholder="NODE_ENV=production&#10;DATABASE_URL=…"></textarea>
+      </div>
+      <span class="field-error" id="newAppError" style="display:none"></span>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost"   onclick="window.appsMgr.closeNewAppModal()">Cancel</button>
+      <button class="btn btn-primary" id="newAppDeployBtn" onclick="window.appsMgr.submitNewApp()">Deploy</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ App Logs modal ════════════════ -->
+<div class="modal-backdrop" id="modalAppLogs">
+  <div class="modal-outer" style="max-width:900px;width:90vw"><div class="modal-inner" style="display:flex;flex-direction:column;max-height:85vh">
+    <div class="modal-header">
+      <div>
+        <h3>App Logs</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="appLogsName">…</div>
+      </div>
+      <div style="display:flex;gap:var(--space-2)">
+        <button class="btn btn-ghost btn-xs" onclick="window.appsMgr.refreshLogs()">Refresh</button>
+        <button class="modal-close" onclick="window.appsMgr.closeLogsModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="overflow:auto">
+      <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-2)">stdout</div>
+      <pre id="appLogsStdout" style="background:var(--bg-elevated);padding:var(--space-3);border-radius:var(--radius-sm);font-size:0.75rem;font-family:var(--font-mono);overflow:auto;max-height:300px;margin:0 0 var(--space-4)"></pre>
+      <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-2)">stderr</div>
+      <pre id="appLogsStderr" style="background:rgba(224,92,106,0.05);padding:var(--space-3);border-radius:var(--radius-sm);font-size:0.75rem;font-family:var(--font-mono);overflow:auto;max-height:300px;margin:0;color:var(--text-error,#e05c6a)"></pre>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Changelog modal (click the version pill) ════════════════ -->
+<div class="modal-backdrop" id="modalChangelog">
+  <div class="modal-outer" style="max-width:680px;width:95vw;height:auto;max-height:85vh"><div class="modal-inner" style="display:flex;flex-direction:column;max-height:85vh">
+    <div class="modal-header">
+      <div>
+        <h3>What's New in DPanel</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px">Version history and patch notes</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modalChangelog').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;padding:var(--space-5)">
+
+      <!-- v2.0.0 -->
+      <div class="changelog-entry">
+        <div class="changelog-header">
+          <span class="changelog-version">v2.0.0</span>
+          <span class="changelog-date">2026-05-11</span>
+          <span class="changelog-tag major">Major Release</span>
+        </div>
+        <p class="changelog-summary">Major release. New security features, mail deliverability stack, in-panel database browser, Node/Python app manager, backup restore, comprehensive responsive design, and the user guide refresh.</p>
+
+        <div class="changelog-section">
+          <h4>🆕 New Features</h4>
+          <ul>
+            <li><strong>Two-Factor Authentication</strong> — TOTP-based, works with any standard authenticator (Google Authenticator, Authy, 1Password, Bitwarden)</li>
+            <li><strong>API Keys</strong> — bearer tokens for external automation, admin + read-only scopes, audit-logged</li>
+            <li><strong>Database Browser</strong> — phpMyAdmin-style: browse tables, view structure, run free-form SQL</li>
+            <li><strong>Node / Python App Manager</strong> — deploy long-running services via PM2, Apache reverse proxy, live logs</li>
+            <li><strong>Mail Health Probe</strong> — 11 deliverability checks (rDNS, HELO, MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, TLS cert, RBL), daily cron, alerts on failure</li>
+            <li><strong>MTA-STS &amp; TLS-RPT</strong> — RFC 8461 / 8460 records auto-published; mta-sts.&lt;domain&gt; policy file + Apache vhost</li>
+            <li><strong>DMARC Report Processor</strong> — IMAP-fetches aggregate reports, parses XML (gz/zip), stores in DB for trending</li>
+            <li><strong>Backup Restore</strong> — restore files or databases from the UI with type-RESTORE confirmation; wipe-target + drop-recreate options</li>
+            <li><strong>Domain Health Dashboard</strong> — per-domain aggregator: SSL, DNS, Mail Health, backups, disk, PHP, error log</li>
+            <li><strong>Email Alerts</strong> — SSL expiry, mail-health failures, backup failures, new-admin-IP logins; deduped 24h</li>
+            <li><strong>Audit Log UI</strong> — searchable, filterable view of every admin action</li>
+            <li><strong>Per-domain IMAP TLS (SNI)</strong> — Dovecot serves the right cert per domain instead of one global cert</li>
+            <li><strong>Subdomain mail support</strong> — provision <code>app.example.com</code> with full mail (records written into the parent zone)</li>
+            <li><strong>File Manager</strong> — chmod editor, archive extraction (.zip/.tar.gz/etc.), bulk delete + move, image preview</li>
+            <li><strong>Job Queue</strong> — long ops (WordPress install, future heavy ops) run async with progress polling</li>
+            <li><strong>Mobile / Responsive</strong> — hamburger nav, table priority columns, bottom-sheet modals, touch-target sizing, mobile DB Browser layout</li>
+          </ul>
+        </div>
+
+        <div class="changelog-section">
+          <h4>🔧 Architecture &amp; Reliability</h4>
+          <ul>
+            <li><strong>Domain provisioning reconciler</strong> — 13 ordered steps with per-step rollback, structured step-by-step UI</li>
+            <li><strong>Atomic create</strong> — partial failure during domain provisioning rolls back cleanly instead of leaving orphans</li>
+            <li><strong>Apache vhost collision guard</strong> — refuses to write a vhost whose ServerName/Alias overlaps an existing one</li>
+            <li><strong>Dynamic SERVER_IP detection</strong> — auto-detects via <code>hostname -I</code>, env-var override; was hardcoded to prod IP</li>
+            <li><strong>Webmail vhost ACME exemption</strong> — Let's Encrypt renewals on webmail subdomains no longer silently fail</li>
+          </ul>
+        </div>
+
+        <div class="changelog-section">
+          <h4>🐛 Critical Bug Fixes</h4>
+          <ul>
+            <li><strong>Empty database backups</strong> — <code>mysqldump</code> was being invoked with shell-substituted backticks, producing 20-byte empty <code>.sql.gz</code> files. Every DB backup taken since the panel was deployed was affected.</li>
+            <li><strong>Webmail/autoconfig vhost collision</strong> — autoconfig vhost claimed <code>webmail.&lt;domain&gt;</code> as ServerAlias, intercepting webmail traffic and returning 403</li>
+            <li><strong>Maildir creation</strong> — <code>mkdir -p .../Maildir/{cur,new,tmp}</code> was being created as a literal directory because dash (not bash) shell doesn't brace-expand</li>
+            <li><strong>Missing npm dependencies</strong> — <code>helmet</code>, <code>dotenv</code>, <code>cookie</code>, <code>cookie-signature</code>, <code>geoip-lite</code>, <code>isbot</code> were used but not declared, so fresh installs crashed on boot</li>
+            <li><strong>Admin email read from deleted config.json</strong> — Let's Encrypt registrations were using <code>admin@&lt;newdomain&gt;</code> placeholder; now reads from <code>dpanel_users.email</code></li>
+            <li><strong>Dovecot users file format</strong> — was producing entries with non-numeric UID columns that recent Dovecot versions reject</li>
+          </ul>
+        </div>
+
+        <div class="changelog-section">
+          <h4>🎨 UI Polish</h4>
+          <ul>
+            <li>Domains table redesigned: kebab menu for secondary actions, proper column alignment</li>
+            <li>All modals: full-width bottom-sheet on phones; primary action reversed to thumb-reach</li>
+            <li>Long file paths / cert subjects wrap correctly with <code>overflow-wrap: anywhere</code></li>
+            <li>Touch devices: <code>.btn-xs</code> bumped to 32px min-height</li>
+            <li>Progressive table column hiding at 1100/900/820/700/640/560/480px breakpoints</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- v1.0.0 -->
+      <div class="changelog-entry">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.0.0</span>
+          <span class="changelog-date">2026-04 — Initial release</span>
+          <span class="changelog-tag">Foundation</span>
+        </div>
+        <p class="changelog-summary">Initial DPanel build. Self-hosted control panel replacement for cPanel/Plesk.</p>
+        <div class="changelog-section">
+          <ul>
+            <li>Apache vhost management, BIND9 DNS zones, Let's Encrypt AutoSSL</li>
+            <li>Postfix + Dovecot + OpenDKIM mail stack with virtual users</li>
+            <li>Webmail (custom IMAP/SMTP UI)</li>
+            <li>MySQL/MariaDB database + user management</li>
+            <li>File manager (browse / edit / upload / download)</li>
+            <li>Cron job manager, UFW firewall config</li>
+            <li>WordPress one-click installer via WP-CLI</li>
+            <li>DAnalytics — Apache log ingestion with geo + bot detection, dashboard, scheduled email reports</li>
+            <li>WebSocket-based browser terminal</li>
+            <li>Multi-user with per-domain scoped access</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div></div>
+</div>
+
+<style>
+.changelog-entry {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--border);
+}
+.changelog-entry:first-child { padding-top: 0; }
+.changelog-entry:last-child  { border-bottom: none; }
+.changelog-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.changelog-version {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.changelog-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.changelog-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.changelog-tag.major {
+  background: linear-gradient(135deg, var(--accent), var(--accent-green, #4ade80));
+  color: #fff;
+  border-color: transparent;
+}
+.changelog-summary {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-4);
+  line-height: 1.5;
+}
+.changelog-section {
+  margin-bottom: var(--space-4);
+}
+.changelog-section:last-child { margin-bottom: 0; }
+.changelog-section h4 {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.changelog-section ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  list-style: disc;
+}
+.changelog-section li {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 4px;
+}
+.changelog-section li strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.changelog-section code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--bg-elevated);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+</style>
+
+<!-- ════════════════ Domain Health detail modal ════════════════ -->
+<div class="modal-backdrop" id="modalDomainHealth">
+  <div class="modal-outer" style="max-width:640px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Domain Health</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="healthModalDomain">…</div>
+      </div>
+      <button class="modal-close" onclick="window.domains.closeModal('modalDomainHealth')">✕</button>
+    </div>
+    <div class="modal-body" id="healthModalBody">
+      <div class="empty-state"><p>Running checks…</p></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ File chmod modal ════════════════ -->
+<div class="modal-backdrop" id="modalChmod">
+  <div class="modal-outer" style="max-width:420px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Change Permissions</h3>
+      <button class="modal-close" onclick="window.filesMgr.closeChmod()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-3);font-family:var(--font-mono)" id="chmodFile">…</p>
+      <div class="form-group">
+        <label>Octal Mode</label>
+        <input type="text" class="input" id="chmodInput" maxlength="4" pattern="[0-7]{3,4}" style="font-family:var(--font-mono);max-width:120px" placeholder="644">
+        <span class="field-error" id="chmodError" style="display:none;margin-top:6px"></span>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-muted)">Common values: <code>644</code> read-only files, <code>755</code> executables &amp; directories, <code>600</code> owner-only secrets, <code>777</code> everyone-writable (avoid).</p>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost"   onclick="window.filesMgr.closeChmod()">Cancel</button>
+      <button class="btn btn-primary" onclick="window.filesMgr.saveChmod()">Apply</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Image preview modal ════════════════ -->
+<div class="modal-backdrop" id="modalImagePreview">
+  <div class="modal-outer" style="max-width:90vw;max-height:90vh"><div class="modal-inner" style="display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div style="font-size:0.8125rem;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="imagePreviewFile">…</div>
+      <button class="modal-close" onclick="window.filesMgr.closeImagePreview()">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center;padding:var(--space-4);background:#000">
+      <img id="imagePreviewImg" style="max-width:100%;max-height:75vh;object-fit:contain" alt="">
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ New API Key modal ════════════════ -->
+<div class="modal-backdrop" id="modalNewApiKey">
+  <div class="modal-outer" style="max-width:460px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>Create API Key</h3>
+      <button class="modal-close" onclick="window.settings.closeApiKeyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Key Name</label>
+        <input type="text" class="input" id="newApiKeyName" placeholder="e.g. CI deploy, backup script" maxlength="128">
+      </div>
+      <div class="form-group">
+        <label>Scope</label>
+        <select class="input" id="newApiKeyScope">
+          <option value="admin">Admin — full read + write</option>
+          <option value="read">Read-only — GET only</option>
+        </select>
+      </div>
+      <span class="field-error" id="newApiKeyError" style="display:none"></span>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost"   onclick="window.settings.closeApiKeyModal()">Cancel</button>
+      <button class="btn btn-primary" id="newApiKeyBtn" onclick="window.settings.createApiKey()">Create</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Show API Key once modal ════════════════ -->
+<div class="modal-backdrop" id="modalShowApiKey">
+  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+    <div class="modal-header">
+      <h3>API Key Created</h3>
+      <button class="modal-close" onclick="window.settings.closeShowKey()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:var(--space-3) var(--space-4);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">
+        <strong style="color:var(--accent-amber,#f59e0b)">Copy this key now.</strong> It will NEVER be shown again — only its prefix is stored.
+      </div>
+      <div style="background:var(--bg-elevated);padding:var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--border);font-family:var(--font-mono);font-size:0.8125rem;word-break:break-all;margin-bottom:var(--space-3)" id="showApiKeyValue"></div>
+      <button class="btn btn-primary btn-sm" onclick="window.settings.copyNewKey()">Copy to Clipboard</button>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-primary" onclick="window.settings.closeShowKey()">Done</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ Backup Restore modal ════════════════ -->
+<div class="modal-backdrop" id="modalRestoreBackup">
+  <div class="modal-outer" style="max-width:520px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3 style="color:var(--accent-amber,#f59e0b)">Restore from Backup</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="restoreFilename">…</div>
+      </div>
+      <button class="modal-close" onclick="window.backupMgr.cancelRestore()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:var(--space-4);padding:var(--space-3) var(--space-4);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);font-size:0.8125rem;color:var(--text-secondary)">
+        <strong style="color:var(--accent-amber,#f59e0b)">This OVERWRITES current data.</strong>
+        The current state is not saved automatically — if you need a rollback point, take a fresh backup first.
+      </div>
+      <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:var(--space-4)">
+        Type: <strong style="color:var(--text-secondary)" id="restoreType">…</strong>
+      </p>
+
+      <!-- Files target -->
+      <div id="restoreFilesGroup" style="display:none">
+        <div class="form-group">
+          <label>Target Domain (docroot will be restored into)</label>
+          <select class="input" id="restoreDomain"></select>
+        </div>
+        <label style="display:flex;align-items:center;gap:var(--space-2);font-size:0.875rem;margin-bottom:var(--space-4)">
+          <input type="checkbox" id="restoreWipe" checked>
+          Wipe target docroot first (recommended for clean restore)
+        </label>
+      </div>
+
+      <!-- Database target -->
+      <div id="restoreDbGroup" style="display:none">
+        <div class="form-group">
+          <label>Target Database (will be created if missing)</label>
+          <input type="text" class="input" id="restoreDbName" style="font-family:var(--font-mono)">
+        </div>
+        <label style="display:flex;align-items:center;gap:var(--space-2);font-size:0.875rem;margin-bottom:var(--space-4)">
+          <input type="checkbox" id="restoreDropFirst" checked>
+          Drop and recreate target database first (recommended for clean restore)
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label>Type <strong style="font-family:var(--font-mono)">RESTORE</strong> to confirm</label>
+        <input type="text" class="input" id="restoreConfirmInput"
+               style="font-family:var(--font-mono);text-transform:uppercase"
+               oninput="window.backupMgr.checkRestoreConfirm()"
+               placeholder="RESTORE">
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.backupMgr.cancelRestore()">Cancel</button>
+      <button class="btn btn-danger" id="restoreBtn" disabled onclick="window.backupMgr.submitRestore()">Restore</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════════════════ MySQL Database Browser modal ════════════════ -->
+<div class="modal-backdrop" id="modalMysqlBrowser">
+  <div class="modal-outer" style="max-width:1200px;width:95vw;height:90vh"><div class="modal-inner" style="display:flex;flex-direction:column;height:100%">
+    <div class="modal-header">
+      <div>
+        <h3>Database Browser</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="mysqlBrowserCrumb">…</div>
+      </div>
+      <button class="modal-close" onclick="window.mysqlMgr.closeBrowser()">✕</button>
+    </div>
+    <div class="modal-body" style="flex:1;display:flex;overflow:hidden;padding:0">
+      <!-- Sidebar: table list -->
+      <div style="width:260px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg-elevated)">
+        <div style="padding:var(--space-3) var(--space-4);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);border-bottom:1px solid var(--border)">Tables</div>
+        <ul id="mysqlBrowserTables" style="list-style:none;margin:0;padding:0"></ul>
+      </div>
+
+      <!-- Main pane -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div class="tabs" style="border-bottom:1px solid var(--border);padding:0 var(--space-4)">
+          <div class="tab active" id="mysqlBrowserTabBrowse"    onclick="window.mysqlMgr.switchBrowserTab('browse')">Browse</div>
+          <div class="tab"        id="mysqlBrowserTabStructure" onclick="window.mysqlMgr.switchBrowserTab('structure')">Structure</div>
+          <div class="tab"        id="mysqlBrowserTabSql"       onclick="window.mysqlMgr.switchBrowserTab('sql')">SQL</div>
+        </div>
+
+        <!-- Browse pane -->
+        <div id="mysqlBrowsePane" class="tab-panel active" style="flex:1;overflow:auto;padding:var(--space-4)">
+          <div id="mysqlBrowseControls" style="display:flex;gap:var(--space-2);align-items:center;margin-bottom:var(--space-3);font-size:0.8125rem;color:var(--text-muted)"></div>
+          <div id="mysqlBrowseRows" style="overflow:auto"></div>
+        </div>
+
+        <!-- Structure pane -->
+        <div id="mysqlStructurePane" class="tab-panel" style="flex:1;overflow:auto;padding:var(--space-4);display:none">
+          <div id="mysqlStructureContent"></div>
+        </div>
+
+        <!-- SQL pane -->
+        <div id="mysqlSqlPane" class="tab-panel" style="flex:1;overflow:auto;padding:var(--space-4);display:none">
+          <textarea id="mysqlSqlInput" class="input" rows="6"
+            style="width:100%;font-family:var(--font-mono);font-size:0.875rem;resize:vertical"
+            placeholder="SELECT * FROM dpanel_users LIMIT 10"></textarea>
+          <div style="display:flex;gap:var(--space-2);align-items:center;margin:var(--space-3) 0">
+            <button class="btn btn-primary btn-sm" onclick="window.mysqlMgr.runSql()">Run</button>
+            <span id="mysqlSqlStatus" style="font-size:0.8125rem;color:var(--text-muted)"></span>
+          </div>
+          <div id="mysqlSqlResult" style="overflow:auto"></div>
+        </div>
+      </div>
     </div>
   </div></div>
 </div>

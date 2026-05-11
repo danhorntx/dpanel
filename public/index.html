@@ -59,7 +59,7 @@
         <div class="login-error" id="loginError"></div>
 
         <form class="login-form" id="loginForm" autocomplete="off">
-          <div class="form-group">
+          <div class="form-group" data-step="password">
             <label for="username">Username</label>
             <div class="input-wrap">
               <svg class="input-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -70,7 +70,7 @@
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" data-step="password">
             <label for="password">Password</label>
             <div class="input-wrap">
               <svg class="input-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -81,6 +81,21 @@
               <input type="password" id="password" name="password" class="input input-with-icon"
                      placeholder="••••••••" autocomplete="current-password" required>
             </div>
+          </div>
+
+          <!-- 2FA step — hidden until /auth/login responds requires2fa -->
+          <div class="form-group" data-step="totp" style="display:none">
+            <label for="totp">Two-Factor Code</label>
+            <div class="input-wrap">
+              <svg class="input-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+                <path d="M5 6h6M5 8h6M5 10h4"/>
+              </svg>
+              <input type="text" id="totp" name="totp" class="input input-with-icon"
+                     placeholder="123456" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                     autocomplete="one-time-code">
+            </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-2)">Enter the 6-digit code from your authenticator app.</p>
           </div>
 
           <button type="submit" class="btn btn-primary" id="loginBtn" style="margin-top:var(--space-2);justify-content:center;">
@@ -101,6 +116,24 @@
     const btn  = document.getElementById('loginBtn');
     const err  = document.getElementById('loginError');
 
+    // Login is a two-step flow: 'password' (username + password) → if 2FA is
+    // enabled for the user, server says requires2fa and we switch to 'totp'
+    // (6-digit code), keeping the session cookie that's now mid-flight.
+    let step = 'password';
+
+    function setStep(next) {
+      step = next;
+      document.querySelectorAll('[data-step]').forEach(el => {
+        const visible = el.dataset.step === step;
+        el.style.display = visible ? '' : 'none';
+        el.querySelectorAll('input').forEach(i => { i.required = visible; });
+      });
+      if (step === 'totp') setTimeout(() => document.getElementById('totp').focus(), 50);
+    }
+
+    function showError(msg) { err.textContent = msg; err.classList.add('show'); }
+    function resetButton() { btn.classList.remove('loading'); btn.textContent = step === 'totp' ? 'Verify' : 'Sign in'; }
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
       err.classList.remove('show');
@@ -108,30 +141,52 @@
       btn.textContent = '';
 
       try {
-        const res = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: form.username.value.trim(),
-            password: form.password.value
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          window.location.href = '/dashboard';
-        } else {
-          err.textContent = data.error || 'Login failed';
-          err.classList.add('show');
-          btn.classList.remove('loading');
-          btn.textContent = 'Sign in';
+        let res, data;
+        if (step === 'password') {
+          res = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: form.username.value.trim(),
+              password: form.password.value,
+            }),
+          });
+          data = await res.json();
+          if (data.success) {
+            window.location.href = '/dashboard';
+            return;
+          }
+          if (data.requires2fa) {
+            // Promote to TOTP step — server has stashed pending state in our session
+            setStep('totp');
+            resetButton();
+            return;
+          }
+          // Plain login failure
+          showError(data.error || 'Login failed');
+          resetButton();
           form.password.value = '';
           form.password.focus();
+        } else {
+          // TOTP step
+          res = await fetch('/auth/login/2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: form.totp.value.trim() }),
+          });
+          data = await res.json();
+          if (data.success) {
+            window.location.href = '/dashboard';
+            return;
+          }
+          showError(data.error || '2FA verification failed');
+          resetButton();
+          form.totp.value = '';
+          form.totp.focus();
         }
       } catch (_) {
-        err.textContent = 'Could not reach the server.';
-        err.classList.add('show');
-        btn.classList.remove('loading');
-        btn.textContent = 'Sign in';
+        showError('Could not reach the server.');
+        resetButton();
       }
     });
   </script>

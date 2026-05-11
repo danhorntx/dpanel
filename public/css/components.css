@@ -241,14 +241,16 @@ tbody td {
 .td-mono { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-secondary); }
 .td-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
 
-/* ── Domains table — fixed layout, no horizontal scroll ─────────────────────── */
+/* ── Domains table — fixed layout, no horizontal scroll on desktop ──────────── */
+/* On narrow viewports we fall back to overflow-x:auto (rule below). */
 #section-domains .table-wrap { overflow-x: hidden; }
 #section-domains table       { table-layout: fixed; }
-#section-domains col.col-domain  { width: 16%; }
-#section-domains col.col-docroot { width: 28%; }
+#section-domains col.col-domain  { width: 18%; }
+#section-domains col.col-docroot { width: 32%; }
 #section-domains col.col-ssl     { width: 10%; }
+#section-domains col.col-disk    { width: 10%; }
 #section-domains col.col-status  { width: 12%; }
-#section-domains col.col-actions { width: 34%; }
+#section-domains col.col-actions { width: 18%; }
 #section-domains td.td-truncate  {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,6 +266,248 @@ tbody td {
   gap: var(--space-1);
 }
 #section-domains .td-actions .btn { white-space: nowrap; flex-shrink: 0; }
+
+/* ── Inline row-action kebab menu (used by domains, can be reused elsewhere) ─ */
+.row-menu {
+  position: relative;
+  display: inline-block;
+}
+.row-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+.row-menu > summary::-webkit-details-marker { display: none; }
+.row-menu > summary::marker { content: ''; }
+.row-menu > summary:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.row-menu[open] > summary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.row-menu-list {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  z-index: 20;
+  min-width: 150px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.25);
+}
+.row-menu[open] > .row-menu-list {
+  display: flex;
+  flex-direction: column;
+  animation: fadeUp 120ms var(--ease-out-expo);
+}
+.row-menu-list button {
+  text-align: left;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.row-menu-list button:hover { background: var(--bg-elevated); }
+.row-menu-list button.danger { color: var(--accent-red); }
+.row-menu-list button.danger:hover { background: var(--accent-red-dim); }
+.row-menu-list .menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE / MOBILE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tables: hide low-priority columns at narrower viewports ──────────────────
+   Generic pattern: tables that want to participate add data-priority="low" or
+   "lowest" to the relevant <th> / <td> cells (or use the .col-hide-* utility
+   classes on <col> elements). At each breakpoint we hide successively more
+   columns so the most important info stays visible on phones.
+
+   Specific tweaks per section follow this generic block. */
+@media (max-width: 900px) {
+  [data-priority="lowest"], col[data-priority="lowest"] { display: none; }
+}
+@media (max-width: 700px) {
+  [data-priority="low"], col[data-priority="low"] { display: none; }
+}
+
+/* ── Domains table — progressive column hiding ────────────────────────────── */
+@media (max-width: 1100px) {
+  #section-domains col.col-disk { display: none; }
+  #section-domains thead th:nth-child(4),
+  #section-domains tbody td:nth-child(4) { display: none; }   /* hide Disk */
+  #section-domains col.col-domain  { width: 22%; }
+  #section-domains col.col-docroot { width: 38%; }
+  #section-domains col.col-ssl     { width: 12%; }
+  #section-domains col.col-status  { width: 14%; }
+  #section-domains col.col-actions { width: 14%; }
+}
+@media (max-width: 820px) {
+  /* Drop docroot — domain itself is the identifier; full path visible in Config */
+  #section-domains col.col-docroot { display: none; }
+  #section-domains thead th:nth-child(2),
+  #section-domains tbody td:nth-child(2) { display: none; }
+  #section-domains col.col-domain  { width: 40%; }
+  #section-domains col.col-ssl     { width: 18%; }
+  #section-domains col.col-status  { width: 20%; }
+  #section-domains col.col-actions { width: 22%; }
+}
+@media (max-width: 560px) {
+  /* Phone: domain + status (badge) + kebab. Hide SSL — it's in Health modal */
+  #section-domains col.col-ssl     { display: none; }
+  #section-domains thead th:nth-child(3),
+  #section-domains tbody td:nth-child(3) { display: none; }
+  #section-domains col.col-domain  { width: 50%; }
+  #section-domains col.col-status  { width: 28%; }
+  #section-domains col.col-actions { width: 22%; }
+  /* Hide the Disable/Enable action button — accessible via row-menu only */
+  #section-domains .td-actions > .btn:not(:first-child):not(.row-menu summary) { display: none; }
+}
+
+/* ── File Manager — hide low-priority columns at narrower viewports ──────── */
+@media (max-width: 900px) {
+  #section-files thead th:nth-child(5),
+  #section-files tbody td:nth-child(5) { display: none; }   /* Modified */
+}
+@media (max-width: 700px) {
+  #section-files thead th:nth-child(3),
+  #section-files tbody td:nth-child(3) { display: none; }   /* Permissions */
+}
+@media (max-width: 560px) {
+  #section-files thead th:nth-child(4),
+  #section-files tbody td:nth-child(4) { display: none; }   /* Size */
+}
+
+/* ── MySQL DB Browser modal — sidebar collapses on mobile ─────────────────── */
+@media (max-width: 700px) {
+  #modalMysqlBrowser .modal-outer { width: 100vw !important; height: 100dvh !important; max-width: none !important; border-radius: 0; }
+  #modalMysqlBrowser .modal-body  { flex-direction: column !important; }
+  #modalMysqlBrowser .modal-body > div:first-child {
+    /* The table-list sidebar — turn into a horizontal scroller above main content */
+    width: 100% !important; max-height: 140px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+  #modalMysqlBrowserTables { display: flex; flex-wrap: wrap; }
+  #modalMysqlBrowserTables li { flex: 0 0 auto; }
+}
+
+/* ── Modals: full-width + bottom-anchored on mobile ──────────────────────── */
+@media (max-width: 640px) {
+  .modal-outer {
+    max-width: none !important;
+    width: 100vw !important;
+    margin: 0 !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 92dvh;
+  }
+  .modal-backdrop { align-items: flex-end; }
+  .modal-body { padding: var(--space-4); }
+  /* Reverse footer button order so primary action is at the BOTTOM (thumb reach) */
+  .modal-footer { flex-direction: column-reverse !important; gap: var(--space-2) !important; }
+  .modal-footer .btn { width: 100%; justify-content: center; }
+}
+
+/* ── Form rows: stack vertically on narrow ────────────────────────────────── */
+@media (max-width: 600px) {
+  .form-row,
+  [data-stack-mobile] { flex-direction: column !important; align-items: stretch !important; }
+  .form-row .input,
+  .form-row select,
+  [data-stack-mobile] .input,
+  [data-stack-mobile] select { width: 100% !important; max-width: none !important; }
+}
+
+/* ── Page headers: stack title + actions on narrow ────────────────────────── */
+@media (max-width: 600px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+  .page-header > div:last-child { width: 100%; }
+}
+
+/* ── Settings cards: full width on mobile ─────────────────────────────────── */
+@media (max-width: 600px) {
+  #section-settings > div { max-width: none !important; }
+}
+
+/* ── Bulk action bar (file manager) — stack on mobile ──────────────────── */
+@media (max-width: 480px) {
+  #filesBulkBar { flex-wrap: wrap; }
+  #filesBulkBar .btn { flex: 1; }
+}
+
+/* ── Touch target enlargement (touch devices) ─────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  .btn-xs {
+    padding: 6px 10px;
+    font-size: 0.8125rem;
+    min-height: 32px;
+  }
+  .btn-sm {
+    min-height: 38px;
+  }
+  .row-menu > summary {
+    padding: 7px 12px;
+    font-size: 1.125rem;
+    line-height: 1;
+  }
+  .row-menu-list button {
+    padding: 12px 14px;
+    font-size: 0.875rem;
+  }
+  /* Increase tap area around table action buttons */
+  .td-actions { gap: var(--space-2); }
+}
+
+/* ── Long-string wrapping in detail panes ─────────────────────────────────── */
+.detail-text,
+.detail-row .detail-val,
+.code-block,
+pre.mono {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Health probe / domain health detail rows — let detail text wrap properly */
+#healthChecksList li,
+#healthModalBody li,
+#credSteps li {
+  word-break: break-word;
+}
+#healthChecksList li > div,
+#credSteps li > div { min-width: 0; }   /* fix flex children that hold long mono strings */
+
+/* Audit log table — hide IP column on narrow (least useful) */
+@media (max-width: 700px) {
+  .audit-log-table thead th:nth-child(6),
+  .audit-log-table tbody td:nth-child(6) { display: none; }
+}
+
+/* ── Webmail UI: stack folder list on mobile ─────────────────────────────── */
+/* The webmail.html has its own layout; this is a global hook. */
+@media (max-width: 700px) {
+  .webmail-folders { width: 100%; max-height: 120px; overflow-y: auto; }
+}
 
 /* ── Badges ──────────────────────────────────────────────────────────────────── */
 .badge {

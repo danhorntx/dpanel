@@ -5,7 +5,7 @@ window.mail = (() => {
   function switchTab(tab, el) {
     currentTab = tab;
     document.querySelectorAll('#section-mail .tabs .tab').forEach(t => t.classList.toggle('active', t === el));
-    ['accounts','forwards','dkim'].forEach(id => {
+    ['accounts','forwards','dkim','health'].forEach(id => {
       const el = document.getElementById(`tab-mail-${id}`);
       if (el) el.classList.toggle('active', id === tab);
     });
@@ -15,8 +15,9 @@ window.mail = (() => {
       else if (tab === 'forwards') { addBtn.style.display = ''; addBtn.onclick = () => openModal('modalAddForward'); }
       else { addBtn.style.display = 'none'; }
     }
-    if (tab === 'accounts') loadAccounts();
+    if      (tab === 'accounts') loadAccounts();
     else if (tab === 'forwards') loadForwards();
+    else if (tab === 'health')   loadHealth();
     else loadDkim();
   }
 
@@ -409,6 +410,133 @@ window.mail = (() => {
   function openModal(id) { document.getElementById(id).classList.add('open'); }
   function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+  // ── Mail Health ─────────────────────────────────────────────────────────────
+
+  // Human labels + remediation hints. Keyed by check name from lib/mailhealth.js.
+  const HEALTH_CHECK_META = {
+    'rdns':     { label: 'Reverse DNS (PTR)', hint: 'Set the PTR for your server IP in your hosting provider control panel (Contabo, etc.) to mail.<your-domain>. This is one of the strongest deliverability signals.' },
+    'helo':     { label: 'HELO hostname',     hint: 'Postfix\'s HELO must resolve via public DNS to your server IP. Set DPANEL_MAIL_HOSTNAME in /opt/dpanel/.env and re-run configure-mail.sh.' },
+    'mail-a':   { label: 'mail.<domain> A',    hint: 'The mail subdomain should resolve to your server IP. Usually auto-created by mail-dns when you provision a domain with mail enabled.' },
+    'mx':       { label: 'MX record',          hint: 'MX 10 mail.<domain> — usually auto-created.' },
+    'spf':      { label: 'SPF',                hint: 'TXT on apex with v=spf1 authorizing your IP. Auto-published by mail-dns.' },
+    'dkim':     { label: 'DKIM',               hint: 'mail._domainkey.<domain> publishes the public key. Run "Repair" on the DKIM tab if missing.' },
+    'dmarc':    { label: 'DMARC',              hint: '_dmarc.<domain> publishes the policy. Auto-published with p=quarantine.' },
+    'mta-sts':  { label: 'MTA-STS',            hint: 'TLS enforcement policy. DNS + an HTTPS policy file at mta-sts.<domain>. Auto-set during provisioning.' },
+    'tls-rpt':  { label: 'TLS-RPT',            hint: '_smtp._tls.<domain> publishes a TLS reporting address. Auto-set during provisioning.' },
+    'tls-cert': { label: 'IMAP/SMTP cert',     hint: 'Let\'s Encrypt cert for mail.<domain> served by Dovecot. Run AutoSSL on mail.<domain> if missing.' },
+    'rbl':      { label: 'IP reputation (RBL)',hint: 'Your IP is on a Realtime Blocklist. Request delisting at the listing service (links in details) or ask your hosting provider for a different IP.' },
+  };
+
+  function _healthIcon(status) {
+    switch (status) {
+      case 'pass': return { ch: '✓', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' };
+      case 'warn': return { ch: '!', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' };
+      case 'fail': return { ch: '✗', color: '#e05c6a', bg: 'rgba(224,92,106,0.12)' };
+      case 'skip': return { ch: '–', color: '#7a86a0', bg: 'rgba(255,255,255,0.04)' };
+      default:     return { ch: '·', color: '#7a86a0', bg: 'rgba(255,255,255,0.04)' };
+    }
+  }
+
+  function _escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // Populate the dropdown with managed DNS zones — those are the domains we
+  // can sensibly probe (we serve their DNS, so DKIM/SPF/DMARC checks make sense).
+  async function loadHealth() {
+    const sel  = document.getElementById('healthDomainSelect');
+    const btn  = document.getElementById('healthRunBtn');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Loading…</option>';
+    btn.disabled = true;
+
+    try {
+      const data = await api.get('/api/dns/zones');
+      if (!data?.success || !data.data?.length) {
+        sel.innerHTML = '<option value="">No managed zones found</option>';
+        return;
+      }
+      const opts = data.data.map(z => `<option value="${_escapeHtml(z.domain)}">${_escapeHtml(z.domain)}</option>`).join('');
+      sel.innerHTML = opts;
+      btn.disabled = false;
+    } catch (err) {
+      sel.innerHTML = `<option value="">Error: ${_escapeHtml(err.message)}</option>`;
+    }
+  }
+
+  async function runHealthProbe() {
+    const sel        = document.getElementById('healthDomainSelect');
+    const btn        = document.getElementById('healthRunBtn');
+    const summary    = document.getElementById('healthSummary');
+    const empty      = document.getElementById('healthEmpty');
+    const list       = document.getElementById('healthChecksList');
+    const domain     = sel.value;
+    if (!domain) return;
+
+    empty.style.display = 'none';
+    list.innerHTML = `<li style="padding:var(--space-4);text-align:center;color:var(--text-muted)">Probing ${_escapeHtml(domain)}… (this takes about 5–10 seconds)</li>`;
+    btn.disabled = true; btn.textContent = 'Probing…';
+
+    try {
+      const res = await api.get(`/api/mail/health/${encodeURIComponent(domain)}`);
+      if (!res?.success) {
+        list.innerHTML = `<li style="padding:var(--space-4);color:var(--text-error)">Error: ${_escapeHtml(res?.error || 'probe failed')}</li>`;
+        return;
+      }
+      _renderHealth(res.data);
+    } catch (err) {
+      list.innerHTML = `<li style="padding:var(--space-4);color:var(--text-error)">Network error: ${_escapeHtml(err.message)}</li>`;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Run Probe';
+    }
+  }
+
+  function _renderHealth(result) {
+    const summary  = document.getElementById('healthSummary');
+    const list     = document.getElementById('healthChecksList');
+
+    // Summary badge
+    const badge = document.getElementById('healthSummaryBadge');
+    const sIcon = _healthIcon(result.summary);
+    const sLabel = result.summary === 'pass' ? 'All checks healthy'
+                 : result.summary === 'warn' ? 'Some warnings'
+                 : 'Failing — mail likely not delivering';
+    badge.innerHTML = `
+      <div style="display:inline-flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:${sIcon.bg};border:1px solid ${sIcon.color}40;border-radius:var(--radius-md)">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:${sIcon.color};color:#fff;font-weight:700">${sIcon.ch}</span>
+        <div>
+          <div style="font-weight:600;font-size:0.9375rem;color:var(--text-primary)">${_escapeHtml(sLabel)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
+            ${result.tally.pass} pass · ${result.tally.warn} warn · ${result.tally.fail} fail · ${result.tally.skip} skipped
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('healthServerIp').textContent  = result.server_ip || '—';
+    document.getElementById('healthHelo').textContent      = result.helo_hostname || '—';
+    document.getElementById('healthCheckedAt').textContent = new Date(result.checked_at).toLocaleString();
+    summary.style.display = '';
+
+    // Checks
+    list.innerHTML = result.checks.map(c => {
+      const meta = HEALTH_CHECK_META[c.name] || { label: c.name, hint: '' };
+      const icon = _healthIcon(c.status);
+      const showHint = (c.status === 'fail' || c.status === 'warn') && meta.hint;
+      return `
+        <li style="padding:var(--space-3);background:${icon.bg};border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <div style="display:flex;align-items:center;gap:var(--space-3)">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${icon.color}1a;color:${icon.color};font-weight:700">${icon.ch}</span>
+            <div style="flex:1">
+              <div style="font-weight:500;font-size:0.875rem;color:var(--text-primary)">${_escapeHtml(meta.label)}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono);word-break:break-word">${_escapeHtml(c.detail || '')}</div>
+            </div>
+            <span style="font-size:0.6875rem;color:${icon.color};text-transform:uppercase;letter-spacing:0.06em;font-weight:600">${c.status}</span>
+          </div>
+          ${showHint ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:var(--space-2);padding-left:34px;font-style:italic">→ ${_escapeHtml(meta.hint)}</div>` : ''}
+        </li>`;
+    }).join('');
+  }
+
   return {
     switchTab, loadAll, loadAccounts, loadForwards, loadDkim,
     addAccount, addForward, openChangePassword, changePassword,
@@ -417,6 +545,7 @@ window.mail = (() => {
     openEditQuota, saveQuota,
     generateMailPassword, updatePasswordStrength,
     generateChangePassword, copyChangePassword,
+    loadHealth, runHealthProbe,
     openModal, closeModal,
   };
 })();

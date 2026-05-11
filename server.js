@@ -10,7 +10,7 @@ const session       = require('express-session');
 const MySQLStore    = require('express-mysql-session')(session);
 const cron          = require('node-cron');
 const WebSocket     = require('ws');
-const { requireLogin }   = require('./lib/auth');
+const { requireLogin, acceptApiKey }   = require('./lib/auth');
 const { attachTerminal } = require('./routes/terminal');
 const { pool, migrate }  = require('./lib/db');
 const ingester           = require('./lib/analytics-ingester');
@@ -71,6 +71,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Auth routes (public) ──────────────────────────────────────────────────────
 app.use('/auth', require('./routes/auth'));
 
+// ── API key auth — runs before every /api/* route. If a valid `Authorization:
+//    Bearer dpk_...` header is present, stamps req.apiAuth so requireLogin/
+//    requireAdmin accept it as a valid session. No-op if no key.
+app.use('/api', acceptApiKey);
+
 // ── Protected API routes ──────────────────────────────────────────────────────
 app.use('/api/dashboard',   requireLogin, require('./routes/dashboard'));
 app.use('/api/domains',     requireLogin, require('./routes/domains'));
@@ -90,6 +95,9 @@ app.use('/api/git',         requireLogin, require('./routes/git'));
 app.use('/api/files',       requireLogin, require('./routes/files'));
 app.use('/api/healthcheck', requireLogin, require('./routes/healthcheck'));
 app.use('/api/users',       requireLogin, require('./routes/users'));
+app.use('/api/keys',        requireLogin, require('./routes/apikeys'));
+app.use('/api/apps',        requireLogin, require('./routes/apps'));
+app.use('/api/jobs',        requireLogin, require('./routes/jobs'));
 app.use('/api/analytics',         requireLogin, require('./routes/analytics'));
 app.use('/api/analytics/reports', requireLogin, require('./routes/analytics-reports'));
 app.use('/webmail',                       require('./routes/webmail'));
@@ -114,7 +122,7 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
 
 // ── WebSocket terminal ────────────────────────────────────────────────────────
 const wss = new WebSocket.Server({ server, path: '/terminal' });
-attachTerminal(wss, sessionMiddleware);
+attachTerminal(wss, sessionStore, process.env.SESSION_SECRET);
 
 // ── Analytics report mailer cron (runs at 7am UTC daily) ─────────────────────
 cron.schedule('0 7 * * *', async () => {
@@ -135,6 +143,95 @@ cron.schedule('0 3 * * *', async () => {
     console.log('[cron] certbot renew complete');
   } catch (err) {
     console.error('[cron] certbot renew failed:', err.message);
+  }
+});
+
+// ── Mail health probe cron (daily at 4am UTC) ─────────────────────────────────
+// Runs the deliverability probe for every managed zone that has DKIM, stores
+// results in dpanel_mail_health for trending. UI shows the most recent. When
+// summary degrades to 'fail', an alert email goes to the admin.
+cron.schedule('0 4 * * *', async () => {
+  try {
+    const mailhealth = require('./lib/mailhealth');
+    const dnsLib     = require('./lib/dns');
+    const dkim       = require('./lib/dkim');
+    const notify     = require('./lib/notify');
+    const zones      = dnsLib.listZones();
+    const targets    = zones.map(z => z.domain).filter(d => dkim.hasDkim(d));
+    if (!targets.length) return;
+    console.log(`[cron] mail-health probing ${targets.length} domain(s)`);
+    for (const d of targets) {
+      try {
+        const result = await mailhealth.checkDomain(d);
+        await pool.query(
+          'INSERT INTO dpanel_mail_health (domain, summary, server_ip, helo_hostname, result_json) VALUES (?, ?, ?, ?, ?)',
+          [result.domain, result.summary, result.server_ip, result.helo_hostname, JSON.stringify(result)]
+        );
+        // Alert on failing probes — dedupe key includes domain so each
+        // newly-broken domain triggers its own notification, but the same
+        // domain failing day after day only emails once per 24h.
+        if (result.summary === 'fail') {
+          const failures = result.checks.filter(c => c.status === 'fail');
+          const body = `Mail Health probe for ${d} is failing.\n\n` +
+            failures.map(c => `  ✗ ${c.name}: ${c.detail || '(no detail)'}`).join('\n') +
+            `\n\nFull dashboard: panel → Mail → Health → ${d}`;
+          notify.sendAlert({
+            key:     `mail-health-fail:${d}`,
+            subject: `[DPanel] Mail Health failing for ${d}`,
+            body,
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.error(`[cron] mail-health for ${d} failed:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[cron] mail-health batch failed:', err.message);
+  }
+});
+
+// ── DMARC report processor (daily at 4:30am UTC) ──────────────────────────────
+// Reads the configured DMARC inbox (DMARC_INBOX_EMAIL/PASSWORD in .env),
+// parses + stores any unseen aggregate reports. No-op if not configured.
+cron.schedule('30 4 * * *', async () => {
+  try {
+    const dmarc  = require('./lib/dmarcprocessor');
+    const result = await dmarc.processInbox();
+    if (!result.configured) {
+      console.log(`[cron] dmarc: ${result.reason} — skipping`);
+      return;
+    }
+    console.log(`[cron] dmarc: ${result.messages} message(s), ${result.reports} report(s) ingested${result.errors.length ? ', ' + result.errors.length + ' errors' : ''}`);
+  } catch (err) {
+    console.error('[cron] dmarc processor failed:', err.message);
+  }
+});
+
+// ── SSL expiry alert cron (daily at 5am UTC) ──────────────────────────────────
+// Walks the Let's Encrypt cert list, emails on each cert with < 14 days
+// remaining. Dedupe key includes the cert name so each cert generates a
+// daily reminder until it's renewed.
+cron.schedule('0 5 * * *', async () => {
+  try {
+    const ssl    = require('./lib/ssl');
+    const notify = require('./lib/notify');
+    const certs  = ssl.listCerts().filter(c => c.type === "Let's Encrypt");
+    for (const c of certs) {
+      if (c.daysLeft != null && c.daysLeft <= 14) {
+        const urgent = c.daysLeft <= 3 ? '⚠️ URGENT — ' : '';
+        notify.sendAlert({
+          key:     `ssl-expiry:${c.domain}`,
+          subject: `${urgent}[DPanel] SSL cert for ${c.domain} expires in ${c.daysLeft} day${c.daysLeft === 1 ? '' : 's'}`,
+          body:    `The Let's Encrypt certificate for ${c.domain} expires on ${c.expiry}.\n\n` +
+                   `Days remaining: ${c.daysLeft}\n\n` +
+                   `certbot renew should handle this automatically (runs daily at 3am UTC). ` +
+                   `If you're seeing this, the auto-renew likely failed — check journalctl -u dpanel ` +
+                   `for "cron:ssl-renew" errors, or run "certbot renew --cert-name ${c.domain}" by hand.`,
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error('[cron] ssl-expiry alert failed:', err.message);
   }
 });
 

@@ -2,9 +2,10 @@
 
 // ── Access Accounts (FTP/SFTP/SSH) ────────────────────────────────────────────
 window.ftp = (() => {
-  let currentDomain  = null;
-  let currentDocRoot = null;
-  let editingUser    = null;
+  let currentDomain   = null;
+  let currentDocRoot  = null;
+  let editingUser     = null;
+  let editingAllowShell = false;
 
   // ── Open the manage modal for a domain ──────────────────────────────────────
   async function openForDomain(domain, docRoot) {
@@ -56,19 +57,41 @@ window.ftp = (() => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
-    const shellEl = document.getElementById('addAccessAllowShell');
-    if (shellEl) shellEl.checked = false;
+    // Default to SSH (preferred)
+    const sshRadio = document.getElementById('addAccessTypeSsh');
+    if (sshRadio) { sshRadio.checked = true; _renderAddTypeCards(); }
     const errEl = document.getElementById('addAccessError');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     openModal('modalAddAccess');
   }
+
+  // ── Update card highlight for add-modal access type ──────────────────────────
+  function _renderAddTypeCards() {
+    const isSsh = document.getElementById('addAccessTypeSsh')?.checked;
+    const sshCard  = document.getElementById('addAccessTypeSshLabel');
+    const sftpCard = document.getElementById('addAccessTypeSftpLabel');
+    if (sshCard) {
+      sshCard.style.borderColor  = isSsh ? 'var(--accent)' : 'var(--border)';
+      sshCard.style.background   = isSsh ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+      const title = sshCard.querySelector('span');
+      if (title) title.style.color = isSsh ? 'var(--accent)' : '';
+    }
+    if (sftpCard) {
+      sftpCard.style.borderColor = isSsh ? 'var(--border)' : 'var(--accent)';
+      sftpCard.style.background  = isSsh ? 'var(--bg-elevated)' : 'var(--accent-dim)';
+      const title = sftpCard.querySelector('span');
+      if (title) title.style.color = isSsh ? '' : 'var(--accent)';
+    }
+  }
+
+  function onAccessTypeChange() { _renderAddTypeCards(); }
 
   // ── Submit add form ──────────────────────────────────────────────────────────
   async function submitAdd() {
     const username   = document.getElementById('addAccessUsername').value.trim();
     const password   = document.getElementById('addAccessPassword').value;
     const confirm    = document.getElementById('addAccessConfirm').value;
-    const allowShell = document.getElementById('addAccessAllowShell').checked;
+    const allowShell = document.getElementById('addAccessTypeSsh')?.checked ?? true;
     const sshKey     = document.getElementById('addAccessSshKey').value.trim();
     const errEl      = document.getElementById('addAccessError');
     const btn        = document.getElementById('addAccessBtn');
@@ -99,19 +122,70 @@ window.ftp = (() => {
 
   // ── Open Edit modal ──────────────────────────────────────────────────────────
   function openEdit(username, allowShell, hasSshKey) {
-    editingUser = username;
+    editingUser     = username;
+    editingAllowShell = !!allowShell;
     document.getElementById('editAccessUsername').textContent = username;
     document.getElementById('editAccessPassword').value  = '';
     document.getElementById('editAccessConfirm').value   = '';
     document.getElementById('editAccessSshKey').value    = '';
-    document.getElementById('editAccessShellBadge').textContent = allowShell ? 'SFTP + SSH Shell' : 'SFTP only';
     document.getElementById('editAccessSshKeyHint').textContent = hasSshKey ? 'A key is set. Paste a new key to replace it, or leave blank to keep existing.' : 'No key set. Paste a public key to add one.';
     const errEl = document.getElementById('editAccessError');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     // Reset copy button state
     const copyBtn = document.getElementById('editPwCopyBtn');
     if (copyBtn) { copyBtn.style.display = 'none'; copyBtn._pw = null; }
+    // Render shell toggle
+    _renderShellToggle();
     openModal('modalEditAccess');
+  }
+
+  // ── Render / update the access-type card UI in the edit modal ───────────────
+  function _renderShellToggle() {
+    const toggle   = document.getElementById('editAccessShellToggle');
+    const sshCard  = document.getElementById('editAccessCardSsh');
+    const sftpCard = document.getElementById('editAccessCardSftp');
+    // Sync hidden checkbox with current state (or read it if called from card click)
+    const isSsh = toggle ? toggle.checked : editingAllowShell;
+    if (toggle && toggle.checked !== isSsh) toggle.checked = isSsh;
+
+    if (sshCard) {
+      sshCard.style.borderColor = isSsh ? 'var(--accent)' : 'var(--border)';
+      sshCard.style.background  = isSsh ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+      const title = sshCard.querySelector('span');
+      if (title) title.style.color = isSsh ? 'var(--accent)' : '';
+    }
+    if (sftpCard) {
+      sftpCard.style.borderColor = isSsh ? 'var(--border)' : 'var(--accent)';
+      sftpCard.style.background  = isSsh ? 'var(--bg-elevated)' : 'var(--accent-dim)';
+      const title = sftpCard.querySelector('span');
+      if (title) title.style.color = isSsh ? '' : 'var(--accent)';
+    }
+  }
+
+  // ── Toggle shell access ──────────────────────────────────────────────────────
+  async function toggleShell() {
+    const toggle = document.getElementById('editAccessShellToggle');
+    const newVal = toggle ? toggle.checked : !editingAllowShell;
+    const errEl  = document.getElementById('editAccessError');
+    errEl.style.display = 'none';
+
+    const btn = document.getElementById('editSaveShellBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const data = await api.put(`/api/ftp/${editingUser}/shell`, { allowShell: newVal });
+
+    btn.disabled = false; btn.textContent = 'Save';
+
+    if (data?.success) {
+      editingAllowShell = newVal;
+      _renderShellToggle();
+      window.toast('success', newVal ? 'Shell access enabled' : 'Shell access disabled', editingUser);
+      loadAccounts();
+    } else {
+      // Revert the toggle visually on failure
+      if (toggle) toggle.checked = editingAllowShell;
+      showErr(errEl, data?.error || 'Failed to update shell access.');
+    }
   }
 
   // ── Save password from edit modal ────────────────────────────────────────────
@@ -258,5 +332,5 @@ window.ftp = (() => {
   function openModal(id)  { document.getElementById(id).classList.add('open'); }
   function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-  return { openForDomain, openAdd, submitAdd, openEdit, savePassword, saveSshKey, confirmDeleteAccount, closeModal, generatePassword, generateEditPassword, copyEditPassword, generateKeypair };
+  return { openForDomain, openAdd, submitAdd, openEdit, savePassword, saveSshKey, toggleShell, _renderShellToggle, onAccessTypeChange, confirmDeleteAccount, closeModal, generatePassword, generateEditPassword, copyEditPassword, generateKeypair };
 })();

@@ -204,7 +204,7 @@ window.analyticsModule = (() => {
     });
 
     const domainSel = document.getElementById('analyticsDomainsSelect');
-    if (domainSel) domainSel.addEventListener('change', () => { domain = domainSel.value; load(); });
+    if (domainSel) domainSel.addEventListener('change', () => { domain = domainSel.value; load(); startRealtime(); });
 
     ['analyticsFrom', 'analyticsTo'].forEach(id => {
       const el = document.getElementById(id);

@@ -25,7 +25,9 @@ router.get('/', (req, res) => {
   } catch (err) { res.json({ success: false, error: err.message }); }
 });
 
-// POST /api/wordpress/install
+// POST /api/wordpress/install — async via job queue. Returns a jobId
+// immediately; client polls /api/jobs/:id until state='done' and reads the
+// credentials from job.result.
 router.post('/install', async (req, res) => {
   try {
     const { domain, adminUser, adminEmail, siteTitle } = req.body;
@@ -41,19 +43,27 @@ router.post('/install', async (req, res) => {
     const dbPassword  = req.body.dbPassword  || genPw(20);
     const adminPassword = req.body.adminPassword || genPw(16);
 
-    await wp.install({
-      domain,
-      docRoot:       vhost.docRoot,
-      dbName,
-      dbUser,
-      dbPassword,
-      adminUser:     adminUser || 'admin',
-      adminPassword,
-      adminEmail:    adminEmail || `admin@${domain}`,
-      siteTitle:     siteTitle || domain,
-    });
+    const jobs = require('../lib/jobqueue');
+    const jobId = jobs.enqueue(`wordpress-install:${domain}`, async (job) => {
+      job.setProgress(10, 'Preparing database…');
+      job.addLog(`Installing WordPress for ${domain} → ${vhost.docRoot}`);
+      job.setProgress(30, 'Downloading WordPress core…');
+      await wp.install({
+        domain,
+        docRoot:       vhost.docRoot,
+        dbName,
+        dbUser,
+        dbPassword,
+        adminUser:     adminUser || 'admin',
+        adminPassword,
+        adminEmail:    adminEmail || `admin@${domain}`,
+        siteTitle:     siteTitle || domain,
+      });
+      job.setProgress(100, 'Done');
+      return { domain, dbName, dbUser, dbPassword, adminUser: adminUser || 'admin', adminPassword };
+    }, { domain });
 
-    res.json({ success: true, data: { domain, dbName, dbUser, dbPassword, adminUser: adminUser || 'admin', adminPassword } });
+    res.json({ success: true, jobId });
   } catch (err) { res.json({ success: false, error: err.message }); }
 });
 

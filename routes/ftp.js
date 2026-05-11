@@ -90,6 +90,37 @@ router.put('/:username/sshkey', (req, res) => {
   }
 });
 
+// ── PUT /api/ftp/:username/shell ──────────────────────────────────────────────
+// Toggle shell access on an existing account.
+// Body: { allowShell: true|false }
+router.put('/:username/shell', (req, res) => {
+  const username = sanitizeUsername(req.params.username);
+  const allowShell = !!req.body.allowShell;
+  if (!userExists(username))
+    return res.json({ success: false, error: `User "${username}" not found.` });
+  try {
+    const shell = allowShell ? '/bin/bash' : '/usr/sbin/nologin';
+    execSync(`usermod -s ${shell} ${username}`);
+
+    // Sync group membership: shell users must NOT be in dpanel-sftp (which ForceCommands to sftp)
+    if (allowShell) {
+      try { execSync(`gpasswd -d ${username} dpanel-sftp 2>/dev/null`); } catch (_) {}
+    } else {
+      try { execSync(`usermod -aG dpanel-sftp ${username}`); } catch (_) {}
+    }
+
+    // Persist to access-accounts.json
+    const accounts = readAccounts();
+    const acc = accounts.find(a => a.username === username);
+    if (acc) { acc.allowShell = allowShell; writeAccounts(accounts); }
+
+    logAction('access:shell', username, allowShell ? 'enabled' : 'disabled');
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 // ── POST /api/ftp/generate-keypair ────────────────────────────────────────────
 router.post('/generate-keypair', (req, res) => {
   const tmpKey = `/tmp/dpanel_keygen_${Date.now()}`;

@@ -85,16 +85,14 @@ router.post('/dkim/:domain', async (req, res) => {
     const { domain } = req.params;
     const pub = await dkim.generateKey(domain);
     // Auto-publish DKIM TXT record if we manage a zone for this domain
-    if (dns.zoneExists(domain)) {
-      try {
-        const bare = dkim.getBareKey(domain);
-        if (bare) {
-          // Remove stale entry first (idempotent)
-          try { dns.deleteRecord(domain, { name: 'mail._domainkey', type: 'TXT' }); } catch (_) {}
-          dns.addDkimRecord(domain, bare, 'mail');
-        }
-      } catch (_) { /* non-fatal: zone publish failure shouldn't block response */ }
-    }
+    // (covers both apex and subdomain via addDkimRecord's internal resolution).
+    try {
+      const bare = dkim.getBareKey(domain);
+      if (bare) {
+        try { dns.removeDkimRecord(domain, 'mail'); } catch (_) {}
+        dns.addDkimRecord(domain, bare, 'mail');
+      }
+    } catch (_) { /* non-fatal: zone publish failure shouldn't block response */ }
     res.json({ success: true, data: { publicKey: pub } });
   } catch (err) { res.json({ success: false, error: err.message }); }
 });
@@ -171,17 +169,15 @@ router.post('/repair/:domain', async (req, res) => {
       }
 
       // 4. Add DKIM TXT record to zone if missing
-      if (dns.zoneExists(domain)) {
-        try {
-          const bare = dkim.getBareKey(domain);
-          if (bare) {
-            // Remove old entry and re-add using addDkimRecord (handles chunking)
-            try { dns.deleteRecord(domain, { name: 'mail._domainkey', type: 'TXT' }); } catch (_) {}
-            dns.addDkimRecord(domain, bare, 'mail');
-            fixes.push('DKIM TXT record added to DNS zone');
-          }
-        } catch (e) { issues.push(`DKIM DNS record failed: ${e.message}`); }
-      }
+      // (addDkimRecord handles parent-zone resolution for subdomains)
+      try {
+        const bare = dkim.getBareKey(domain);
+        if (bare) {
+          try { dns.removeDkimRecord(domain, 'mail'); } catch (_) {}
+          const published = dns.addDkimRecord(domain, bare, 'mail');
+          if (published) fixes.push('DKIM TXT record added to DNS zone');
+        }
+      } catch (e) { issues.push(`DKIM DNS record failed: ${e.message}`); }
 
       // Restart opendkim to pick up table changes
       try { execSync('systemctl restart opendkim', { timeout: 10000 }); fixes.push('OpenDKIM restarted'); }
@@ -228,6 +224,89 @@ router.post('/repair/:domain', async (req, res) => {
   } catch (err) {
     res.json({ success: false, error: err.message, data: { fixes, issues } });
   }
+});
+
+// ── Mail Health Probe ─────────────────────────────────────────────────────────
+const mailhealth = require('../lib/mailhealth');
+
+// GET /api/mail/health/:domain → run the probe NOW + return structured result.
+// Stored in dpanel_mail_health for trending. Heavy-ish (~5s for the slowest check)
+// so the UI should show a loader.
+router.get('/health/:domain', async (req, res) => {
+  try {
+    const result = await mailhealth.checkDomain(req.params.domain);
+    // Persist for trending. Non-fatal if DB write fails.
+    try {
+      const { pool } = require('../lib/db');
+      await pool.query(
+        'INSERT INTO dpanel_mail_health (domain, summary, server_ip, helo_hostname, result_json) VALUES (?, ?, ?, ?, ?)',
+        [result.domain, result.summary, result.server_ip, result.helo_hostname, JSON.stringify(result)]
+      );
+    } catch (e) { console.error('[mail/health] persistence failed:', e.message); }
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/mail/health/:domain/history?limit=30 → recent probe summaries for trending
+router.get('/health/:domain/history', async (req, res) => {
+  try {
+    const { pool } = require('../lib/db');
+    const limit = Math.min(parseInt(req.query.limit || '30', 10), 200);
+    const [rows] = await pool.query(
+      'SELECT id, summary, checked_at FROM dpanel_mail_health WHERE domain = ? ORDER BY checked_at DESC LIMIT ?',
+      [req.params.domain, limit]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// ── Seed list deliverability test ─────────────────────────────────────────────
+const seedtest = require('../lib/seedtest');
+const jobqueue = require('../lib/jobqueue');
+
+// GET /api/mail/seedtest/config — which seed providers are configured?
+router.get('/seedtest/config', (req, res) => {
+  res.json({ success: true, data: { seeds: seedtest.configuredSeeds() } });
+});
+
+// POST /api/mail/seedtest/run — kicks off a send+check via the job queue.
+// Returns a jobId; client polls /api/jobs/:id. Takes ~2.5 min total.
+router.post('/seedtest/run', (req, res) => {
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.json({ success: false, error: 'Domain required.' });
+    const jobId = jobqueue.enqueue(`seedtest:${domain}`, (job) => seedtest.runTest(domain, { job }), { domain });
+    res.json({ success: true, jobId });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// GET /api/mail/seedtest/recent — recent test results for the UI
+router.get('/seedtest/recent', async (req, res) => {
+  try {
+    res.json({ success: true, data: await seedtest.recentTests(parseInt(req.query.limit, 10) || 30) });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// ── DMARC Reports ─────────────────────────────────────────────────────────────
+const dmarc = require('../lib/dmarcprocessor');
+
+// GET /api/mail/dmarc/recent — latest stored reports for the UI
+router.get('/dmarc/recent', async (req, res) => {
+  try {
+    res.json({ success: true, data: await dmarc.recentReports(parseInt(req.query.limit, 10) || 30) });
+  } catch (err) { res.json({ success: false, error: err.message }); }
+});
+
+// POST /api/mail/dmarc/process-now — manual trigger; useful for first-run
+// verification + when the cron is too slow. Returns the processInbox summary.
+router.post('/dmarc/process-now', async (req, res) => {
+  try {
+    res.json({ success: true, data: await dmarc.processInbox() });
+  } catch (err) { res.json({ success: false, error: err.message }); }
 });
 
 // ── DNS Records ───────────────────────────────────────────────────────────────

@@ -45,6 +45,7 @@ window.backupMgr = (() => {
         <td style="font-size:0.8125rem;color:var(--text-muted)">${new Date(b.created).toLocaleString()}</td>
         <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
           <a class="btn btn-ghost btn-xs" href="/api/backup/download/${b.file}" download>Download</a>
+          <button class="btn btn-ghost btn-xs"  onclick="window.backupMgr.openRestore('${b.file}','${b.type}')">Restore</button>
           <button class="btn btn-danger btn-xs" onclick="window.backupMgr.deleteBackup('${b.file}')">Delete</button>
         </td>
       </tr>`).join('');
@@ -70,5 +71,79 @@ window.backupMgr = (() => {
     else toast('error', 'Failed', data?.error);
   }
 
-  return { load, createBackup, deleteBackup };
+  // ── Restore ──────────────────────────────────────────────────────────────
+  let _restore = null;  // { file, type, target }
+
+  function openRestore(file, type) {
+    _restore = { file, type };
+    document.getElementById('restoreFilename').textContent = file;
+    document.getElementById('restoreType').textContent      = type;
+
+    // Derive a likely target from the filename. Backup names are
+    //   <prefix>_(files|db)_<ts>.(tar.gz|sql.gz) — the prefix is the domain
+    //   (for files) or the database name (for databases).
+    const prefix = file.split('_')[0];
+
+    // Show the right input pair for the backup type
+    const filesGroup = document.getElementById('restoreFilesGroup');
+    const dbGroup    = document.getElementById('restoreDbGroup');
+    if (type === 'files') {
+      filesGroup.style.display = '';
+      dbGroup.style.display    = 'none';
+      // Build domain dropdown from cached list, pre-select prefix match
+      const sel = document.getElementById('restoreDomain');
+      sel.innerHTML = _domains
+        .filter(d => !d.domain.endsWith('-le-ssl'))
+        .map(d => `<option value="${d.domain}" ${d.domain === prefix ? 'selected' : ''}>${d.domain}</option>`)
+        .join('');
+      document.getElementById('restoreWipe').checked = true;
+    } else {
+      filesGroup.style.display = 'none';
+      dbGroup.style.display    = '';
+      document.getElementById('restoreDbName').value = prefix;
+      document.getElementById('restoreDropFirst').checked = true;
+    }
+
+    document.getElementById('restoreConfirmInput').value = '';
+    document.getElementById('restoreBtn').disabled = true;
+    document.getElementById('modalRestoreBackup').classList.add('open');
+    setTimeout(() => document.getElementById('restoreConfirmInput').focus(), 80);
+  }
+
+  function checkRestoreConfirm() {
+    const val = document.getElementById('restoreConfirmInput').value.trim();
+    document.getElementById('restoreBtn').disabled = (val !== 'RESTORE');
+  }
+
+  async function submitRestore() {
+    if (!_restore) return;
+    const btn = document.getElementById('restoreBtn');
+    btn.disabled = true; btn.textContent = 'Restoring…';
+    let data;
+    if (_restore.type === 'files') {
+      const domain = document.getElementById('restoreDomain').value;
+      const wipe   = document.getElementById('restoreWipe').checked;
+      data = await api.post('/api/backup/restore/files', { file: _restore.file, domain, wipe });
+    } else {
+      const database  = document.getElementById('restoreDbName').value.trim();
+      const dropFirst = document.getElementById('restoreDropFirst').checked;
+      if (!database) { btn.textContent = 'Restore'; return toast('error', 'Validation', 'Target database name required.'); }
+      data = await api.post('/api/backup/restore/database', { file: _restore.file, database, dropFirst });
+    }
+    btn.disabled = false; btn.textContent = 'Restore';
+    if (data?.success) {
+      toast('success', 'Restored', _restore.file);
+      document.getElementById('modalRestoreBackup').classList.remove('open');
+      _restore = null;
+    } else {
+      toast('error', 'Restore failed', data?.error);
+    }
+  }
+
+  function cancelRestore() {
+    document.getElementById('modalRestoreBackup').classList.remove('open');
+    _restore = null;
+  }
+
+  return { load, createBackup, deleteBackup, openRestore, checkRestoreConfirm, submitRestore, cancelRestore };
 })();

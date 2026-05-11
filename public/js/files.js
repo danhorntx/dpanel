@@ -1,10 +1,19 @@
 'use strict';
 window.filesMgr = (() => {
-  let _domain  = null;
-  let _path    = '.';
-  let _domains = [];
+  let _domain   = null;
+  let _path     = '.';
+  let _domains  = [];
+  let _selected = new Set();    // set of selected paths
+  let _entries  = [];           // cached current listing for batch ops
 
-  const TEXT_EXTS = new Set(['.php','.html','.htm','.js','.css','.json','.xml','.txt','.md','.env','.htaccess','.conf','.sh','.py','.rb','.yml','.yaml','.ini','.log','.svg']);
+  const TEXT_EXTS    = new Set(['.php','.html','.htm','.js','.css','.json','.xml','.txt','.md','.env','.htaccess','.conf','.sh','.py','.rb','.yml','.yaml','.ini','.log','.svg']);
+  const IMAGE_EXTS   = new Set(['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.ico']);
+  // Files matching these extensions show an "Extract" action
+  const ARCHIVE_EXTS = ['.zip', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar'];
+  function isArchive(name) {
+    const n = name.toLowerCase();
+    return ARCHIVE_EXTS.some(e => n.endsWith(e));
+  }
 
   async function load() {
     const data = await api.get('/api/domains');
@@ -56,9 +65,13 @@ window.filesMgr = (() => {
   }
 
   function renderEntries(entries, currentPath) {
+    _entries  = entries.map(e => ({ ...e, fullPath: (currentPath === '.' ? e.name : `${currentPath}/${e.name}`) }));
+    _selected.clear();
+    _renderBulkBar();
+
     const tbody = document.getElementById('filesTable');
     if (!entries.length) {
-      tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Empty directory.</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>Empty directory.</p></div></td></tr>`;
       return;
     }
 
@@ -67,26 +80,39 @@ window.filesMgr = (() => {
     if (currentPath && currentPath !== '.') {
       const parent = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '.';
       rows += `<tr>
-        <td colspan="3" style="cursor:pointer" onclick="window.filesMgr.browse('${parent}')">
+        <td></td>
+        <td colspan="4" style="cursor:pointer" onclick="window.filesMgr.browse('${parent}')">
           <span style="font-family:var(--font-mono);color:var(--accent)">← ..</span>
         </td><td></td></tr>`;
     }
 
-    rows += entries.map(e => {
-      const entryPath = currentPath === '.' ? e.name : `${currentPath}/${e.name}`;
-      const icon = e.type === 'dir' ? '📁' : '📄';
+    rows += _entries.map(e => {
+      const entryPath = e.fullPath;
+      const icon = e.type === 'dir' ? '📁' : (IMAGE_EXTS.has(e.ext) ? '🖼' : (isArchive(e.name) ? '📦' : '📄'));
       const size = e.type === 'file' ? formatSize(e.size) : '—';
-      const canEdit = e.type === 'file' && TEXT_EXTS.has(e.ext);
+      const canEdit    = e.type === 'file' && TEXT_EXTS.has(e.ext);
+      const canPreview = e.type === 'file' && IMAGE_EXTS.has(e.ext);
+      const canExtract = e.type === 'file' && isArchive(e.name);
+
+      // Name cell: clickable for dirs/images, plain text otherwise
+      let nameClick = '';
+      if (e.type === 'dir')       nameClick = `onclick="window.filesMgr.browse('${entryPath}')"`;
+      else if (canPreview)        nameClick = `onclick="window.filesMgr.openImagePreview('${entryPath}')"`;
+
       return `
         <tr>
-          <td style="cursor:pointer;font-family:var(--font-mono);font-size:0.8125rem"
-            onclick="${e.type === 'dir' ? `window.filesMgr.browse('${entryPath}')` : ''}">
+          <td style="width:30px">
+            <input type="checkbox" data-path="${entryPath}" onchange="window.filesMgr.toggleSelect('${entryPath}', this.checked)">
+          </td>
+          <td style="cursor:${e.type === 'dir' || canPreview ? 'pointer' : 'default'};font-family:var(--font-mono);font-size:0.8125rem" ${nameClick}>
             ${icon} ${e.name}
           </td>
+          <td style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);cursor:pointer" onclick="window.filesMgr.openChmod('${entryPath}', '${e.mode}')" title="Click to change permissions">${e.mode || '—'}</td>
           <td style="font-size:0.8125rem;color:var(--text-muted)">${size}</td>
           <td style="font-size:0.8125rem;color:var(--text-muted)">${new Date(e.modified).toLocaleDateString()}</td>
-          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
-            ${canEdit ? `<button class="btn btn-ghost btn-xs" onclick="window.filesMgr.openEditor('${entryPath}')">Edit</button>` : ''}
+          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
+            ${canEdit    ? `<button class="btn btn-ghost btn-xs" onclick="window.filesMgr.openEditor('${entryPath}')">Edit</button>` : ''}
+            ${canExtract ? `<button class="btn btn-ghost btn-xs" onclick="window.filesMgr.extractArchive('${entryPath}')">Extract</button>` : ''}
             ${e.type === 'file' ? `<a class="btn btn-ghost btn-xs" href="/api/files/download?domain=${encodeURIComponent(_domain)}&path=${encodeURIComponent(entryPath)}" download>↓</a>` : ''}
             <button class="btn btn-danger btn-xs" onclick="window.filesMgr.deleteEntry('${entryPath}', '${e.type}')">✕</button>
           </td>
@@ -94,6 +120,89 @@ window.filesMgr = (() => {
     }).join('');
 
     tbody.innerHTML = rows;
+  }
+
+  function toggleSelect(path, checked) {
+    if (checked) _selected.add(path); else _selected.delete(path);
+    _renderBulkBar();
+  }
+
+  function _renderBulkBar() {
+    const bar = document.getElementById('filesBulkBar');
+    if (!bar) return;
+    if (!_selected.size) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    document.getElementById('filesBulkCount').textContent = `${_selected.size} selected`;
+  }
+
+  async function bulkDelete() {
+    if (!_selected.size) return;
+    const paths = Array.from(_selected);
+    if (!confirm(`Delete ${paths.length} item(s)? This cannot be undone.`)) return;
+    const data = await api.del('/api/files/batch', { domain: _domain, paths });
+    if (data?.success) {
+      toast('success', 'Deleted', `${data.data.deleted} item(s)`);
+      browse(_path);
+    } else toast('error', 'Failed', data?.error);
+  }
+
+  async function bulkMove() {
+    if (!_selected.size) return;
+    const dest = prompt('Move to (path relative to docroot):', _path);
+    if (dest === null) return;
+    const paths = Array.from(_selected);
+    const data  = await api.post('/api/files/move', { domain: _domain, paths, dest });
+    if (data?.success) {
+      toast('success', 'Moved', `${data.data.moved} item(s) → ${dest}`);
+      browse(_path);
+    } else toast('error', 'Failed', data?.error);
+  }
+
+  // ── chmod ────────────────────────────────────────────────────────────────────
+  let _chmodPath = null;
+  function openChmod(filePath, currentMode) {
+    _chmodPath = filePath;
+    document.getElementById('chmodFile').textContent = filePath;
+    document.getElementById('chmodInput').value      = currentMode || '644';
+    document.getElementById('chmodError').style.display = 'none';
+    document.getElementById('modalChmod').classList.add('open');
+    setTimeout(() => document.getElementById('chmodInput').select(), 50);
+  }
+
+  async function saveChmod() {
+    const mode  = document.getElementById('chmodInput').value.trim();
+    const errEl = document.getElementById('chmodError');
+    if (!/^[0-7]{3,4}$/.test(mode)) {
+      errEl.textContent = 'Mode must be 3 or 4 octal digits (e.g. 755, 644, 0755).';
+      errEl.style.display = 'block'; return;
+    }
+    const data = await api.post('/api/files/chmod', { domain: _domain, path: _chmodPath, mode });
+    if (data?.success) {
+      toast('success', 'Permissions updated', `${_chmodPath} → ${mode}`);
+      document.getElementById('modalChmod').classList.remove('open');
+      browse(_path);
+    } else { errEl.textContent = data?.error || 'chmod failed'; errEl.style.display = 'block'; }
+  }
+  function closeChmod() { document.getElementById('modalChmod').classList.remove('open'); }
+
+  // ── Archive extract ──────────────────────────────────────────────────────────
+  async function extractArchive(filePath) {
+    if (!confirm(`Extract ${filePath} into the current directory?`)) return;
+    toast('warning', 'Extracting…', filePath);
+    const data = await api.post('/api/files/extract', { domain: _domain, archive: filePath });
+    if (data?.success) { toast('success', 'Extracted', `→ ${data.data.destination}`); browse(_path); }
+    else toast('error', 'Extract failed', data?.error);
+  }
+
+  // ── Image preview ────────────────────────────────────────────────────────────
+  function openImagePreview(filePath) {
+    document.getElementById('imagePreviewFile').textContent = filePath;
+    document.getElementById('imagePreviewImg').src = `/api/files/download?domain=${encodeURIComponent(_domain)}&path=${encodeURIComponent(filePath)}`;
+    document.getElementById('modalImagePreview').classList.add('open');
+  }
+  function closeImagePreview() {
+    document.getElementById('modalImagePreview').classList.remove('open');
+    document.getElementById('imagePreviewImg').src = '';
   }
 
   function formatSize(bytes) {
@@ -161,5 +270,11 @@ window.filesMgr = (() => {
     else toast('error', 'Failed', data?.error);
   }
 
-  return { load, onDomainChange, browse, deleteEntry, openEditor, saveFile, uploadFiles, createFolder };
+  return {
+    load, onDomainChange, browse, deleteEntry, openEditor, saveFile, uploadFiles, createFolder,
+    toggleSelect, bulkDelete, bulkMove,
+    openChmod, saveChmod, closeChmod,
+    extractArchive,
+    openImagePreview, closeImagePreview,
+  };
 })();

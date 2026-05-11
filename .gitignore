@@ -1,6 +1,11 @@
 node_modules/
 config.json
+config.json.migrated
+access-accounts.json
+access-accounts.json.migrated
+.admin-bootstrap-password
 certs/
 logs/
 *.log
 .env
+.DS_Store
