@@ -1,0 +1,41 @@
+{
+  "upstreamRepo": "https://github.com/danhorntx/duperhuman.git",
+  "lastSyncedSha": "57135ea2fefc049a31b52fd1232915a46858d340",
+  "lastSyncDate": "2026-05-11T00:00:00Z",
+  "lastSyncStatus": "clean",
+  "_comment": "Tracks the DPanel/webmail/ ↔ duperhuman vendor relationship. Drives scripts/sync-duperhuman.js — see that file's header for usage.",
+
+  "ours": [
+    "server/src/lib/session.ts",
+    "server/src/lib/dpanel-guard.ts",
+    "server/src/routes/dpanel-auth.ts",
+    "client/src/components/account/DPanelLogin.tsx",
+    "client/src/lib/clientConfig.ts"
+  ],
+
+  "patched": [
+    "server/src/index.ts",
+    "server/src/lib/config.ts",
+    "server/src/routes/accounts.ts",
+    "server/package.json",
+    "client/src/App.tsx",
+    "client/src/components/layout/AppLayout.tsx",
+    "client/src/components/layout/Sidebar.tsx",
+    "client/src/components/layout/TopBar.tsx",
+    "client/src/lib/api.ts",
+    "package.json",
+    ".env.example"
+  ],
+
+  "ignore": [
+    "electron/**",
+    "scripts/**",
+    "build-resources/**",
+    ".env",
+    "node_modules/**",
+    "dist/**",
+    ".git/**",
+    ".gitignore",
+    "package-lock.json"
+  ]
+}
