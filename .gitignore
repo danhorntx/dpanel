@@ -9,3 +9,9 @@ logs/
 *.log
 .env
 .DS_Store
+
+# Webmail (vendored duperhuman) build artifacts
+webmail/server/dist/
+webmail/client/dist/
+webmail/.env
+

@@ -1,0 +1,28 @@
+.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+gmail-accounts.enc.json
+
+# Dependencies
+node_modules/
+
+# Build outputs
+client/dist/
+server/dist/
+dist-electron/
+dist-app/
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp/
+tmp/
+
+# Editor/system files
+.idea/
+.vscode/
