@@ -91,6 +91,13 @@ const RecipientField = forwardRef<RecipientFieldHandle, {
   const [acOpen, setAcOpen]     = useState(false)
   const [acCursor, setAcCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Position class for the autocomplete dropdown — flips above the input
+  // when the virtual keyboard is up. MUST be called unconditionally at
+  // the top of the component body to comply with Rules of Hooks; calling
+  // it inside the conditional `{acOpen && suggestions.length > 0 && ...}`
+  // block (as Phase 2 originally did) crashes React the first time a
+  // suggestion appears because the hook count flips from 6 to 7.
+  const dropdownPositionClass = useRecipientDropdownPosition()
 
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }))
 
@@ -211,7 +218,7 @@ const RecipientField = forwardRef<RecipientFieldHandle, {
           (bottom-full) once the keyboard inset exceeds the threshold. */}
       {acOpen && suggestions.length > 0 && (
         <div
-          className={`absolute left-12 right-4 z-30 rounded-lg overflow-hidden ${useRecipientDropdownPosition()}`}
+          className={`absolute left-12 right-4 z-30 rounded-lg overflow-hidden ${dropdownPositionClass}`}
           style={{
             background: 'var(--bg-overlay)',
             border:     '1px solid var(--border-strong)',
