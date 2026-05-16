@@ -120,9 +120,14 @@ export const dpanelAuth = {
     request<Account>('/auth/dpanel-session', { credentials: 'include' }),
 
   logout: () =>
+    // Body required to dodge Fastify's FST_ERR_CTP_EMPTY_JSON_BODY — our
+    // `request()` helper hard-codes Content-Type: application/json and
+    // Fastify rejects a JSON content-type with an empty body. Empty object
+    // satisfies the parser and the handler ignores req.body anyway.
     request<{ ok: boolean }>('/auth/logout', {
       method: 'POST',
       credentials: 'include',
+      body: JSON.stringify({}),
     }),
 
   // DPanel-only: self-serve mailbox password change. Verified server-side by

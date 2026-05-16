@@ -165,8 +165,8 @@ export function TopBar() {
             </button>
             <button
               onClick={async () => {
-                try { await dpanelAuth.logout() } catch { /* still wipe local state */ }
-                try { await db.delete() } catch { /* idb may already be gone */ }
+                try { await dpanelAuth.logout() } catch (err) { console.warn('[logout] server call failed:', err) }
+                try { await db.delete()        } catch (err) { console.warn('[logout] db wipe failed:', err) }
                 window.location.reload()
               }}
               className="desktop-only p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
@@ -231,8 +231,11 @@ export function TopBar() {
                   <button
                     onClick={async () => {
                       closeOverflow()
-                      try { await dpanelAuth.logout() } catch { /* ignore */ }
-                      try { await db.delete()       } catch { /* ignore */ }
+                      // Log failures rather than swallowing — silent
+                      // catches just hid the original FST_ERR_CTP_EMPTY_
+                      // JSON_BODY bug for a while.
+                      try { await dpanelAuth.logout() } catch (err) { console.warn('[logout] server call failed:', err) }
+                      try { await db.delete()       } catch (err) { console.warn('[logout] db wipe failed:', err) }
                       window.location.reload()
                     }}
                     role="menuitem"
