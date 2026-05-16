@@ -24,6 +24,9 @@
     "client/src/components/layout/Sidebar.tsx",
     "client/src/components/layout/TopBar.tsx",
     "client/src/components/labels/LabelManager.tsx",
+    "client/src/components/email/EmailCompose.tsx",
+    "client/src/store/uiStore.ts",
+    "client/src/styles/globals.css",
     "client/src/lib/api.ts",
     "package.json",
     ".env.example"

@@ -64,6 +64,10 @@ interface UiStore {
   labelDialogOpen: boolean
   searchMode: boolean
   keyHint: string | null
+  // True when the sidebar is showing as an off-canvas drawer on mobile.
+  // Desktop ignores this — CSS scopes the .mobile-open class to the mobile
+  // media query so the drawer mode never fires on wide viewports.
+  mobileNavOpen: boolean
 
   // ─ Top-level view
   view: AppView
@@ -102,6 +106,10 @@ interface UiStore {
   setSearchMode: (on: boolean) => void
   setKeyHint: (hint: string | null) => void
 
+  openMobileNav:   () => void
+  closeMobileNav:  () => void
+  toggleMobileNav: () => void
+
   openSearchView:  (query: string) => void
   openLabelManager:(labelId?: string | null) => void
   openMailView:    () => void
@@ -125,6 +133,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   labelDialogOpen: false,
   searchMode: false,
   keyHint: null,
+  mobileNavOpen: false,
 
   view: 'mail',
   searchQuery: '',
@@ -161,9 +170,12 @@ export const useUiStore = create<UiStore>((set, get) => ({
 
   openLabelDialog:  () => set({ labelDialogOpen: true }),
   closeLabelDialog: () => set({ labelDialogOpen: false }),
-
   setSearchMode: (on) => set({ searchMode: on }),
   setKeyHint: (hint) => set({ keyHint: hint }),
+
+  openMobileNav:   () => set({ mobileNavOpen: true }),
+  closeMobileNav:  () => set({ mobileNavOpen: false }),
+  toggleMobileNav: () => set(s => ({ mobileNavOpen: !s.mobileNavOpen })),
 
   openSearchView:   (query) => set({ view: 'search', searchQuery: query, commandPaletteOpen: false }),
   openLabelManager: (labelId = null) => set({ view: 'label-manager', managingLabelId: labelId, commandPaletteOpen: false }),

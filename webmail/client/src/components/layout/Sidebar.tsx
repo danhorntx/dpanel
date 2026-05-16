@@ -79,6 +79,11 @@ export function Sidebar({ onAddAccount }: SidebarProps) {
   const setSidebarCollapsed = useUiStore(s => s.setSidebarCollapsed)
   const toggleSidebar       = useUiStore(s => s.toggleSidebar)
 
+  // Mobile drawer state. On phones the sidebar is fixed-position and slides
+  // in from the left when mobileNavOpen is true (CSS handles the transform).
+  const mobileNavOpen  = useUiStore(s => s.mobileNavOpen)
+  const closeMobileNav = useUiStore(s => s.closeMobileNav)
+
   const effectiveWidth = sidebarCollapsed ? SIDEBAR_LIMITS.COLLAPSED_PX : sidebarWidth
   const collapsed      = sidebarCollapsed
 
@@ -189,7 +194,18 @@ export function Sidebar({ onAddAccount }: SidebarProps) {
   // ─ COLLAPSED RENDERING ────────────────────────────────────────────────────
   if (collapsed) {
     return (
-      <aside className={`sidebar select-none flex flex-col items-center ${resizing ? 'resizing' : ''}`}>
+      <aside
+      className={`sidebar select-none flex flex-col items-center ${resizing ? 'resizing' : ''}${mobileNavOpen ? ' mobile-open' : ''}`}
+      onClick={(e) => {
+        // On mobile, tapping any actionable item inside the drawer dismisses
+        // the drawer. We skip the resize handle and any pure-display elements.
+        const t = e.target as HTMLElement
+        if (t.closest('button, .nav-item, a, [role="button"]')
+            && !t.closest('.sidebar-resize-handle')) {
+          closeMobileNav()
+        }
+      }}
+    >
         {isMac && <div aria-hidden="true" style={{ height: 32, flexShrink: 0 }} />}
 
         {/* Expand */}
@@ -312,7 +328,16 @@ export function Sidebar({ onAddAccount }: SidebarProps) {
 
   // ─ EXPANDED RENDERING ─────────────────────────────────────────────────────
   return (
-    <aside className={`sidebar select-none flex flex-col ${resizing ? 'resizing' : ''}`}>
+    <aside
+      className={`sidebar select-none flex flex-col ${resizing ? 'resizing' : ''}${mobileNavOpen ? ' mobile-open' : ''}`}
+      onClick={(e) => {
+        const t = e.target as HTMLElement
+        if (t.closest('button, .nav-item, a, [role="button"]')
+            && !t.closest('.sidebar-resize-handle')) {
+          closeMobileNav()
+        }
+      }}
+    >
 
       {isMac && <div aria-hidden="true" style={{ height: 32, flexShrink: 0 }} />}
 

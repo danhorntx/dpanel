@@ -1,4 +1,4 @@
-import { MagnifyingGlassIcon, KeyboardIcon, ArrowClockwiseIcon, SignOutIcon, ArrowsClockwiseIcon } from '@phosphor-icons/react'
+import { MagnifyingGlassIcon, KeyboardIcon, ArrowClockwiseIcon, SignOutIcon, ArrowsClockwiseIcon, ListIcon, ArrowLeftIcon } from '@phosphor-icons/react'
 import { useEmailStore, selectActiveState } from '@/store/emailStore'
 import { useUiStore } from '@/store/uiStore'
 import { useLabelsStore } from '@/store/labelsStore'
@@ -14,7 +14,16 @@ export function TopBar() {
 	  const syncStatus = useEmailStore(s => s.syncStatus)
   const openSearch = useUiStore(s => s.openSearchView)
   const openShortcuts = useUiStore(s => s.openShortcuts)
+  const toggleMobileNav = useUiStore(s => s.toggleMobileNav)
   const labels = useLabelsStore(s => s.labels)
+
+  // Mobile back-arrow: when a thread is open, render a back button that
+  // clears the selection. CSS hides this on desktop via .mobile-only.
+  const selectEmail = useEmailStore(s => s.selectEmail)
+  const threadOpen  = useEmailStore(s => {
+    const id = s.activeAccountId
+    return !!id && !!s.accountStates[id]?.selectedId
+  })
 
   const folderLabel =
     activeFolder === 'snoozed'
@@ -28,6 +37,30 @@ export function TopBar() {
       className="topbar-drag-region flex items-center gap-3 px-4 h-11 flex-shrink-0 border-b border-[var(--border-subtle)]"
       style={{ background: 'var(--bg-elevated)' }}
     >
+      {/* Mobile-only: back arrow (when thread open) or hamburger.
+          CSS toggles visibility — desktop never sees these. */}
+      {threadOpen ? (
+        <button
+          onClick={() => selectEmail(null)}
+          className="mobile-only mobile-back-button"
+          aria-label="Back to inbox"
+          title="Back"
+          data-no-drag="true"
+        >
+          <ArrowLeftIcon size={18} weight="regular" />
+        </button>
+      ) : (
+        <button
+          onClick={toggleMobileNav}
+          className="mobile-only mobile-back-button"
+          aria-label="Open navigation"
+          title="Menu"
+          data-no-drag="true"
+        >
+          <ListIcon size={18} weight="regular" />
+        </button>
+      )}
+
       {/* Folder name */}
       <h1 className="text-sm font-semibold text-[var(--text-primary)] tracking-tight min-w-[80px]">
         {folderLabel}

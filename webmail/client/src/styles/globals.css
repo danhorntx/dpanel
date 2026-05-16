@@ -403,6 +403,167 @@ button, input, a, select, textarea,
   }
 }
 
+/* ─── Mobile (≤ 720px) ─────────────────────────────────────────────────────
+   Below this width we collapse to single-pane navigation: sidebar becomes
+   an off-canvas drawer; only one of <email list>/<email thread> is visible
+   at a time, controlled by [data-thread-open] on .main-area. Tap any email
+   to push the thread on top of the list; back arrow in the thread header
+   pops back. Compose/Settings/Search take the full viewport. */
+@media (max-width: 720px) {
+  :root {
+    /* Disable the resizable-pane variable on mobile — we use 100% widths. */
+    --pane-split: 100%;
+    /* Use dynamic viewport height where supported so iOS Safari's address
+       bar doesn't cut off the bottom of the email list. Fallback handled
+       inline at the element level below. */
+  }
+
+  .app-shell {
+    /* Prevent any horizontal scroll on phones. */
+    width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* ── Off-canvas sidebar drawer ──────────────────────────────────────── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    height: 100dvh;
+    width: min(82vw, 320px);
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  /* Disable the desktop drag-to-resize handle entirely on mobile. */
+  .sidebar-resize-handle { display: none; }
+
+  /* Backdrop scrim behind the drawer. Rendered by AppLayout. */
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 55;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .mobile-sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── Single-pane main area ──────────────────────────────────────────── */
+  .main-area {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* List + thread fight for the same screen real estate. The container's
+     data-thread-open attribute decides who wins. */
+  .email-list-pane,
+  .email-thread-pane {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    border-right: none;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Default mobile state (no thread selected): show list, hide thread. */
+  .main-area[data-thread-open="false"] .email-thread-pane { display: none; }
+  .main-area[data-thread-open="true"]  .email-list-pane   { display: none; }
+
+  /* ── Thread "back" button — only visible on mobile ─────────────────── */
+  .mobile-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-right: 4px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+  }
+  .mobile-back-button:hover { background: var(--bg-hover); }
+
+  /* ── Top bar tweaks ─────────────────────────────────────────────────── */
+  .topbar-search-bar {
+    /* Search input is the only fixed-width thing in the TopBar; let it grow
+       to fill available width on phones. */
+    max-width: none;
+  }
+
+  /* ── Compose: always full-screen on mobile, regardless of user pref ── */
+  .compose-window {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    z-index: 70;
+  }
+
+  /* ── Touch target sizing — min 40px for clickable controls ──────────── */
+  .topbar button,
+  .inbox-split-bar button,
+  .email-list-row,
+  .nav-item {
+    min-height: 40px;
+  }
+
+  /* ── Email list row: lift line-height/padding slightly so rows are
+       easier to tap. Avoid changing the visual hierarchy desktop users
+       already learned. */
+  .email-list-row {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  /* ── Email body: respect viewport width, allow horizontal scroll only
+       inside the prose container (long URLs, code blocks) rather than
+       blowing out the whole layout. */
+  .email-prose {
+    max-width: 100%;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .email-prose pre,
+  .email-prose table {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* ── Hide the desktop-only "open sidebar" expand tab (the thin strip
+       on the left edge when the sidebar is collapsed). Mobile uses the
+       hamburger in the top bar instead. */
+  .sidebar-expand-tab { display: none; }
+}
+
+/* Hide-on-desktop / show-on-mobile utilities used by TopBar + AppLayout
+   so the React components can render the same JSX everywhere and the CSS
+   decides what's visible at each breakpoint. */
+.mobile-only       { display: none !important; }
+.desktop-only      { display: inline-flex; }
+@media (max-width: 720px) {
+  .mobile-only     { display: inline-flex !important; }
+  .desktop-only    { display: none !important; }
+}
+
 
 /* ─── Kbd badge ───────────────────────────────────────────────────────────── */
 kbd {

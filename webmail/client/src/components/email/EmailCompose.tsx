@@ -687,7 +687,7 @@ export function ComposeWindow() {
     <AnimatePresence>
       {composeOpen && (
         <motion.div
-          className="flex flex-col"
+          className="compose-window flex flex-col"
           {...motionProps}
           transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
           style={containerStyle}

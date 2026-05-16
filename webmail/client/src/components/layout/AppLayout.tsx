@@ -10,6 +10,7 @@ import { ToastStack }      from '@/components/ui/Toast'
 import { AddAccountModal } from '@/components/account/AddAccountModal'
 import { LabelDialog }     from '@/components/labels/LabelDialog'
 import { useUiStore }      from '@/store/uiStore'
+import { useEmailStore }   from '@/store/emailStore'
 import { isDpanelMode }    from '@/lib/clientConfig'
 
 const CommandPalette = lazy(() => import('@/components/command/CommandPalette').then(m => ({ default: m.CommandPalette })))
@@ -22,6 +23,20 @@ export function AppLayout() {
 	  const view       = useUiStore(s => s.view)
 	  const openMail   = useUiStore(s => s.openMailView)
   const keyHint    = useUiStore(s => s.keyHint)
+
+  // Mobile drawer state. Desktop ignores these via CSS (display:none on the
+  // backdrop, no .mobile-open class effect outside the breakpoint).
+  const mobileNavOpen  = useUiStore(s => s.mobileNavOpen)
+  const closeMobileNav = useUiStore(s => s.closeMobileNav)
+
+  // Drive the single-pane mobile layout: when an email is selected, the
+  // thread pane wins; otherwise the list does. Desktop ignores this — the
+  // [data-thread-open] selector only matches inside the mobile media query.
+  const threadOpen = useEmailStore(s => {
+    const id = s.activeAccountId
+    if (!id) return false
+    return !!s.accountStates[id]?.selectedId
+  })
 
   // Esc returns to mail view from any sub-view
   useEffect(() => {
@@ -36,9 +51,17 @@ export function AppLayout() {
   return (
     <>
       <div className="app-shell">
+        {/* Mobile-only sidebar backdrop. Click to close the drawer.
+            Hidden on desktop via the CSS rule that scopes .show to the
+            mobile media query. */}
+        <div
+          className={`mobile-sidebar-backdrop${mobileNavOpen ? ' show' : ''}`}
+          onClick={closeMobileNav}
+          aria-hidden={!mobileNavOpen}
+        />
         <Sidebar onAddAccount={isDpanelMode() ? undefined : () => setShowAddAccount(true)} />
 
-        <div className="main-area flex-col">
+        <div className="main-area flex-col" data-thread-open={threadOpen ? 'true' : 'false'}>
           {view === 'mail' && (
             <>
               <TopBar />
