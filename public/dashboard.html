@@ -2283,17 +2283,169 @@
   </div></div>
 </div>
 
-<!-- ── Domain Access Modals ───────────────────────────────────────────────── -->
-
-<!-- Manage Access Accounts -->
+<!-- ── Domain Access Modal (SSH-first) ───────────────────────────────────────
+     Replaces the legacy multi-account FTP modal. One key-managed deploy user
+     per domain; SFTP is opt-in fallback. Auto-adopts on first open.
+-->
 <div class="modal-backdrop" id="modalDomainAccess">
+  <div class="modal-outer" style="max-width:640px"><div class="modal-inner">
+    <div class="modal-header">
+      <div>
+        <h3>Access</h3>
+        <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)" id="accessModalDomain"></div>
+      </div>
+      <button class="modal-close" onclick="window.access.close()">✕</button>
+    </div>
+    <div class="modal-body" id="accessModalBody">
+
+      <!-- Loading state -->
+      <div id="accessLoading" style="padding:var(--space-6);text-align:center;color:var(--text-muted);font-size:0.8125rem">Loading…</div>
+
+      <!-- Error state (vhost missing, etc.) -->
+      <div id="accessError" style="display:none;padding:var(--space-4);background:rgba(224,92,106,0.08);border:1px solid rgba(224,92,106,0.3);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.8125rem"></div>
+
+      <!-- Username-collision recovery (rare) -->
+      <div id="accessUsernameCollision" style="display:none;padding:var(--space-4);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.35);border-radius:var(--radius-md);margin-bottom:var(--space-4)">
+        <div style="font-size:0.8125rem;font-weight:600;color:var(--accent-amber, #f59e0b);margin-bottom:var(--space-2)">Username taken</div>
+        <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 var(--space-3) 0" id="accessCollisionMsg"></p>
+        <div style="display:flex;gap:8px">
+          <input id="accessCollisionInput" class="input mono" placeholder="alternate_username" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="window.access.retryAdopt()">Provision user</button>
+        </div>
+      </div>
+
+      <!-- Main content (sections) -->
+      <div id="accessContent" style="display:none">
+
+        <!-- ── Connection ─────────────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">Connection</div>
+          <div id="accessConnection" style="display:flex;flex-direction:column;gap:8px"></div>
+        </section>
+
+        <!-- ── SSH Keys ───────────────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">SSH Keys</div>
+          <ul id="accessKeysList" style="list-style:none;margin:0 0 var(--space-3) 0;padding:0;display:flex;flex-direction:column;gap:6px"></ul>
+
+          <details id="accessAddKeyDetails">
+            <summary style="cursor:pointer;font-size:0.8125rem;color:var(--accent);user-select:none;padding:6px 0">+ Add a key</summary>
+            <div style="margin-top:var(--space-3);padding:var(--space-3);background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-md)">
+              <div class="form-group" style="margin-bottom:var(--space-2)">
+                <label class="label">Label <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+                <input type="text" class="input input-sm" id="accessAddKeyLabel" placeholder="e.g. Dan's MacBook" maxlength="128">
+              </div>
+              <div class="form-group" style="margin-bottom:var(--space-3)">
+                <label class="label">Public Key</label>
+                <textarea class="input mono" id="accessAddKeyText" rows="3" style="font-size:0.7rem;resize:vertical" placeholder="ssh-ed25519 AAAA..."></textarea>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="window.access.submitKey()">Add Key</button>
+                <button class="btn btn-ghost btn-sm" onclick="window.access.generateKey()">Generate keypair for me</button>
+              </div>
+            </div>
+          </details>
+
+          <!-- One-time generated private-key card -->
+          <div id="accessGenKeyCard" style="display:none;margin-top:var(--space-3);padding:var(--space-3);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.35);border-radius:var(--radius-md)">
+            <div style="font-size:0.75rem;font-weight:600;color:var(--accent-amber, #f59e0b);margin-bottom:var(--space-2)">Private key — shown once</div>
+            <textarea id="accessGenKeyText" class="input mono" rows="6" readonly style="font-size:0.7rem;background:var(--bg-base);resize:vertical"></textarea>
+            <div style="display:flex;gap:8px;margin-top:var(--space-2)">
+              <button class="btn btn-xs btn-primary" onclick="window.access.downloadGenKey()">Download .pem</button>
+              <button class="btn btn-xs btn-ghost" onclick="window.access.dismissGenKey()">I've saved it</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── FTP password access ────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">
+            <span>FTP password access</span>
+            <label class="switch"><input type="checkbox" id="accessFtpToggle" onchange="window.access.toggleFtp(this.checked)"><span class="switch-slider"></span></label>
+          </div>
+          <div id="accessFtpBox" style="display:none;padding:var(--space-3);background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-md)">
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 var(--space-3) 0">For legacy tools (Filezilla, Dreamweaver). SSH key auth is preferred.</p>
+            <div style="display:flex;gap:8px;align-items:end">
+              <div style="flex:1">
+                <label class="label">New password</label>
+                <input type="password" class="input input-sm" id="accessFtpPassword" placeholder="8+ characters">
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="window.access.resetFtp()">Reset password</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Shell access ───────────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">
+            <span>Shell access <span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">(SSH terminal, no chroot)</span></span>
+            <label class="switch"><input type="checkbox" id="accessShellToggle" onchange="window.access.toggleShell(this.checked)"><span class="switch-slider"></span></label>
+          </div>
+        </section>
+
+        <!-- ── SSL certificates ───────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">SSL certificates</div>
+          <ul id="accessSslList" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:0.75rem"></ul>
+        </section>
+
+        <!-- ── Coming Soon placeholder ────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-6)">
+          <div class="access-section-header">
+            <span>Coming Soon page <span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">(replaces index.html)</span></span>
+            <label class="switch"><input type="checkbox" id="accessPlaceholderToggle" onchange="window.access.togglePlaceholder(this.checked)"><span class="switch-slider"></span></label>
+          </div>
+        </section>
+
+        <!-- ── Legacy accounts (only when present) ────────────────────────── -->
+        <section id="accessLegacySection" style="display:none;margin-bottom:var(--space-6)">
+          <div class="access-section-header">Legacy accounts</div>
+          <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 var(--space-3) 0">These accounts predate the SSH-first model. They still work but you can remove them once their files are migrated.</p>
+          <ul id="accessLegacyList" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:0.8125rem"></ul>
+        </section>
+
+        <!-- ── Danger zone ────────────────────────────────────────────────── -->
+        <section style="margin-bottom:var(--space-3)">
+          <div class="access-section-header" style="color:var(--text-error, #e05c6a)">Danger zone</div>
+          <button class="btn btn-ghost btn-sm" onclick="window.access.confirmDeleteUser()" style="color:var(--text-error, #e05c6a);border:1px solid rgba(224,92,106,0.3)">Delete deploy user</button>
+        </section>
+
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="window.access.close()">Close</button>
+    </div>
+  </div></div>
+</div>
+
+<style>
+  .access-section-header{
+    font-size:0.75rem;font-weight:600;color:var(--text-muted);
+    text-transform:uppercase;letter-spacing:0.06em;
+    margin-bottom:var(--space-3);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .switch{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+  .switch input{opacity:0;width:0;height:0}
+  .switch-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:20px;transition:.15s}
+  .switch-slider::before{content:"";position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.15s}
+  .switch input:checked + .switch-slider{background:var(--accent)}
+  .switch input:checked + .switch-slider::before{transform:translateX(16px)}
+  .access-row{display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-3);background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.8125rem}
+  .access-row .label{font-size:0.75rem;color:var(--text-muted);width:90px;flex-shrink:0;margin:0}
+  .access-row .value{flex:1;font-family:var(--font-mono);font-size:0.8125rem;color:var(--text-primary);word-break:break-all}
+</style>
+
+<!-- Legacy unused modals (kept on disk for safety — referenced by deprecated public/js/ftp.js) -->
+<!-- Manage Access Accounts (legacy) -->
+<div class="modal-backdrop" id="modalDomainAccessLegacy" style="display:none">
   <div class="modal-outer" style="max-width:540px"><div class="modal-inner">
     <div class="modal-header">
       <div>
         <h3>Access Accounts</h3>
         <div style="font-size:0.8125rem;color:var(--text-muted);margin-top:2px" id="accessModalTitle"></div>
       </div>
-      <button class="modal-close" onclick="window.ftp.closeModal('modalDomainAccess')">✕</button>
+      <button class="modal-close" onclick="window.ftp.closeModal('modalDomainAccessLegacy')">✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:0.8125rem;color:var(--text-secondary);margin-bottom:var(--space-4)">
@@ -3848,6 +4000,7 @@
 <script src="/js/terminal.js"></script>
 <script src="/js/settings.js"></script>
 <script src="/js/ftp.js"></script>
+<script src="/js/access.js"></script>
 <script src="/js/php.js"></script>
 <script src="/js/mysql.js"></script>
 <script src="/js/files.js"></script>

@@ -139,6 +139,7 @@ router.post('/', async (req, res) => {
 function writePlaceholder(docRoot, domain) {
   if (!docRoot || !fs.existsSync(docRoot)) return;
   const html = `<!doctype html>
+<!-- DPanel-Placeholder -->
 <html lang="en"><head><meta charset="utf-8">
 <title>${domain.replace(/[<>&]/g, '')} — Coming Soon</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">

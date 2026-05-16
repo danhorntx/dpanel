@@ -70,7 +70,7 @@ window.domains = (() => {
             <details class="row-menu">
               <summary aria-label="More actions">⋯</summary>
               <div class="row-menu-list">
-                <button onclick="window.ftp.openForDomain('${v.domain}', '${v.docRoot}')">SFTP Access</button>
+                <button onclick="window.access.open('${v.domain}')">Access</button>
                 <button onclick="window.domains.openLogs('${v.domain}')">Logs</button>
                 <button onclick="window.domains.openRedirects('${v.domain}')">Redirects</button>
                 <button onclick="window.domains.openConfig('${v.domain}')">Apache Config</button>
