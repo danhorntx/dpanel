@@ -48,11 +48,19 @@ export function LabelManager() {
     toast('Label deleted')
   }
 
+  // Mobile single-pane logic: when an item is selected (label, settings, or
+  // snippets), the editor pane takes the screen; the sidebar list collapses
+  // out of view. CSS scopes this to ≤720px.
+  const editorOpen = !!editing || showSettings || showSnippets
+
   return (
-    <div className="flex h-full overflow-hidden">
+    <div
+      className="label-manager flex h-full overflow-hidden"
+      data-editor-open={editorOpen ? 'true' : 'false'}
+    >
       {/* List of labels */}
       <div
-        className="w-72 flex-shrink-0 border-r flex flex-col"
+        className="label-manager-sidebar w-72 flex-shrink-0 border-r flex flex-col"
         style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}
       >
         <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -136,7 +144,20 @@ export function LabelManager() {
       </div>
 
       {/* Editor pane */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="label-manager-editor flex-1 overflow-y-auto">
+        {/* Mobile-only back button — returns to the sidebar list. Hidden
+            on desktop (the sidebar is always visible there). */}
+        {editorOpen && (
+          <button
+            onClick={() => setManagingId(null)}
+            className="mobile-only items-center gap-2 px-4 py-3 text-sm border-b w-full"
+            style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
+            aria-label="Back to list"
+          >
+            <ArrowLeftIcon size={14} />
+            <span>Back</span>
+          </button>
+        )}
         {showSettings ? <SettingsPanel /> :
          showSnippets ? <SnippetManager /> :
          editing      ? <LabelEditor key={editing.id} label={editing} /> :

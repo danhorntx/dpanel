@@ -629,6 +629,27 @@ button, input, a, select, textarea,
   .desktop-only    { display: none !important; }
 }
 
+/* ─── LabelManager / SnippetManager mobile reflow ──────────────────────────
+   Desktop layout is a two-column sidebar + editor. On a phone the 288px
+   sidebar swallows most of the screen; flip to single-pane state-driven
+   navigation that mirrors the email-list / email-thread mobile pattern. */
+@media (max-width: 720px) {
+  .label-manager-sidebar { width: 100% !important; min-width: 0; }
+  .label-manager-editor  { width: 100%; }
+  .label-manager[data-editor-open="false"] .label-manager-editor { display: none; }
+  .label-manager[data-editor-open="true"]  .label-manager-sidebar { display: none; }
+
+  /* Settings + Snippets pages use max-w-2xl/3xl mx-auto px-8 layouts that
+     leave only ~296px of usable width on a 360px phone. Halve the inner
+     horizontal padding to 16px so content has room to breathe. Scope by
+     descendant of .label-manager-editor so we don't affect the email
+     reading prose container that uses similar utilities. */
+  .label-manager-editor .px-8 { padding-left: 16px !important; padding-right: 16px !important; }
+  .label-manager-editor .py-8 { padding-top:  20px !important; padding-bottom: 20px !important; }
+  .label-manager-editor .max-w-2xl,
+  .label-manager-editor .max-w-3xl { max-width: 100%; }
+}
+
 /* ─── Touch-device overrides (Phase 1, mobile audit) ───────────────────────
    "hover: none" matches devices without a hovering pointer — phones, tablets,
    most touchscreen laptops. We use this rather than (max-width: 720px) so the

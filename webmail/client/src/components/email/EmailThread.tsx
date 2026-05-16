@@ -6,6 +6,7 @@ import {
   ArchiveIcon, TrashIcon, ClockIcon, TagIcon, CaretDownIcon,
   PaperclipIcon, EnvelopeSimpleOpenIcon, SunIcon, MoonIcon,
   DownloadSimpleIcon, EyeIcon, PencilSimpleIcon, TrayIcon,
+  DotsThreeVerticalIcon,
 } from '@phosphor-icons/react'
 import { AttachmentPreview } from '@/components/email/AttachmentPreview'
 import { attachments as attachmentsApi, emails as emailsApi } from '@/lib/api'
@@ -135,10 +136,18 @@ function EmailFrame({
 
   // Wrap the email HTML in a minimal document that resets defaults and applies
   // theme-appropriate base styles.
+  //
+  // Mobile note: the viewport meta + the * { max-width } rule tame marketing
+  // emails that hardcode a 600+ px container width. Without these, those
+  // emails force horizontal scroll inside the iframe — visible as a
+  // jarring sideways drag on phones. The "* > *" trick lets nested fixed-
+  // width tables shrink while still respecting their relative proportions
+  // (table-layout: fixed makes columns honor the new shrunk width).
   const srcDoc = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <base target="_blank">
 <style>
   html, body {
@@ -151,14 +160,29 @@ function EmailFrame({
     line-height: 1.6;
     word-wrap: break-word;
     overflow-wrap: anywhere;
+    overflow-x: hidden;
   }
-  img, table { max-width: 100% !important; height: auto; }
+  body { max-width: 100%; }
+  img, table {
+    max-width: 100% !important;
+    height: auto;
+  }
+  /* Tables in legacy marketing email templates are typically built with
+     hardcoded width="600". Force them to honor the viewport. */
+  table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+  td, th { word-break: break-word; overflow-wrap: anywhere; }
   a { color: ${linkColor}; }
   blockquote {
     border-left: 3px solid ${blockBorder};
     margin: 12px 0; padding: 4px 0 4px 16px;
     color: ${blockText};
   }
+  /* Anything with an explicit pixel width wider than the viewport becomes
+     responsive. The "important" overrides inline width attributes. */
+  [width], [style*="width"] { max-width: 100% !important; }
 </style>
 </head>
 <body>${safe.html}</body>
@@ -521,15 +545,23 @@ function ActionBar({ email }: { email: Email }) {
     ? { label: 'Edit Draft', icon: <PencilSimpleIcon size={13} />, onClick: () => openCompose({ draftId: email.id }) }
     : { label: 'Reply', icon: <ArrowBendUpLeftIcon size={13} />, onClick: () => openCompose({ replyToId: email.id }) }
 
+  // On mobile we keep the most-used actions visible (Archive, Snooze,
+  // Delete, Move-to-Inbox) and tuck the rest behind a ⋮ overflow menu. The
+  // Reply primary button on the right is always shown, and Reply / Reply
+  // All / Forward all live inside the overflow on phones because Reply is
+  // duplicated by the primary button anyway and the other two are less
+  // frequent.
+  const MOBILE_PRIMARY_LABELS = new Set(['Archive', 'Snooze', 'Delete', 'Move to Inbox', 'Edit draft'])
+  const mobileVisibleActions = actions.filter(a => MOBILE_PRIMARY_LABELS.has(a.label))
+  const mobileOverflowActions = actions.filter(a => !MOBILE_PRIMARY_LABELS.has(a.label))
+
   return (
     <div
       className="flex items-center gap-1 px-4 py-3 border-t border-[var(--border-subtle)] flex-shrink-0 min-w-0"
       style={{ background: 'var(--bg-elevated)' }}
     >
-      {/* Action buttons can shrink (and the kbd hint disappears on narrow
-          widths) but the Reply button on the right is flex-shrink-0 so it
-          is always visible regardless of pane width. */}
-      <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+      {/* Desktop action row — full set, shrinks but never reorders. */}
+      <div className="desktop-only flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
         {actions.map(a => (
           <button
             key={a.label}
@@ -547,6 +579,26 @@ function ActionBar({ email }: { email: Email }) {
         ))}
       </div>
 
+      {/* Mobile action row — primary actions visible inline (icon-only),
+          the rest live behind a ⋮ overflow button. */}
+      <div className="mobile-only flex items-center gap-1 flex-1 min-w-0">
+        {mobileVisibleActions.map(a => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            aria-label={a.label}
+            title={a.label}
+            className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {a.icon}
+          </button>
+        ))}
+        {mobileOverflowActions.length > 0 && (
+          <ActionBarOverflow actions={mobileOverflowActions} />
+        )}
+      </div>
+
       {/* Reply button — never shrinks, never overlaps */}
       <button
         onClick={primaryAction.onClick}
@@ -560,6 +612,68 @@ function ActionBar({ email }: { email: Email }) {
         {primaryAction.icon}
         {primaryAction.label}
       </button>
+    </div>
+  )
+}
+
+/**
+ * Mobile-only overflow menu for the EmailThread action bar. Renders a ⋮
+ * trigger; tapping it pops up a small panel containing the actions that
+ * don't fit inline on a phone (Reply, Reply All, Forward in the standard
+ * case). Closes on outside tap or after an action runs.
+ */
+function ActionBarOverflow({ actions }: { actions: Array<{
+  icon: React.ReactNode; label: string; shortcut?: string; onClick: () => void
+}> }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="More actions"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        <DotsThreeVerticalIcon size={16} weight="bold" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          // Position above the action bar (which sits at the bottom of the
+          // thread pane), so the menu opens UP and doesn't get clipped.
+          className="absolute bottom-full mb-1 left-0 min-w-[180px] rounded-lg overflow-hidden z-50"
+          style={{
+            background: 'var(--bg-elevated)',
+            border:     '1px solid var(--border-subtle)',
+            boxShadow:  '0 12px 32px rgba(0,0,0,0.5)',
+          }}
+        >
+          {actions.map(a => (
+            <button
+              key={a.label}
+              onClick={() => { a.onClick(); setOpen(false) }}
+              role="menuitem"
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-[var(--bg-hover)]"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              <span style={{ color: 'var(--text-muted)' }}>{a.icon}</span>
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

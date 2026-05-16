@@ -51,6 +51,34 @@ interface RecipientFieldHandle {
   focus: () => void
 }
 
+/**
+ * Picks the right Tailwind position class for the recipient autocomplete
+ * dropdown based on whether the on-screen keyboard is up. Returns
+ * "top-full mt-1" (default — below the input) when no keyboard is detected,
+ * and "bottom-full mb-1" (above the input) when the virtual keyboard is
+ * covering ~60+ px of the viewport. Using visualViewport so it works on
+ * iOS Safari + Android Chrome.
+ */
+function useRecipientDropdownPosition(): string {
+  const [aboveInput, setAboveInput] = useState(false)
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
+      setAboveInput(inset >= 60)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+  return aboveInput ? 'bottom-full mb-1' : 'top-full mt-1'
+}
+
 const RecipientField = forwardRef<RecipientFieldHandle, {
   label: string
   recipients: Recipient[]
@@ -176,10 +204,14 @@ const RecipientField = forwardRef<RecipientFieldHandle, {
         />
       </div>
 
-      {/* Contact autocomplete dropdown */}
+      {/* Contact autocomplete dropdown.
+          On desktop it sits below the input (top-full). On mobile when
+          the virtual keyboard is up, "below the input" usually means
+          covered by the keyboard — so we flip it above the input
+          (bottom-full) once the keyboard inset exceeds the threshold. */}
       {acOpen && suggestions.length > 0 && (
         <div
-          className="absolute left-12 right-4 top-full z-30 mt-1 rounded-lg overflow-hidden"
+          className={`absolute left-12 right-4 z-30 rounded-lg overflow-hidden ${useRecipientDropdownPosition()}`}
           style={{
             background: 'var(--bg-overlay)',
             border:     '1px solid var(--border-strong)',

@@ -31,6 +31,7 @@
     "client/src/components/email/EmailList.tsx",
     "client/src/components/email/EmailThread.tsx",
     "client/src/components/search/SearchView.tsx",
+    "client/src/components/ui/Toast.tsx",
     "client/src/store/uiStore.ts",
     "client/src/styles/globals.css",
     "client/src/lib/api.ts",
