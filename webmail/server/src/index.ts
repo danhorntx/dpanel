@@ -7,6 +7,7 @@ import { accountRoutes } from './routes/accounts.js'
 import { emailRoutes } from './routes/emails.js'
 import { searchRoutes } from './routes/search.js'
 import { dpanelAuthRoutes } from './routes/dpanel-auth.js'
+import { dpanelAccountRoutes } from './routes/dpanel-account.js'
 import { dpanelSessionGuard } from './lib/dpanel-guard.js'
 import { registerAccount, startBackgroundSync } from './services/sync.js'
 import { loadPersistedGmailAccounts } from './services/gmail.js'
@@ -59,6 +60,7 @@ await app.register(async (instance) => {
   await instance.register(accountRoutes, { prefix: '/api' })
   await instance.register(emailRoutes, { prefix: '/api' })
   await instance.register(searchRoutes, { prefix: '/api' })
+  await instance.register(dpanelAccountRoutes, { prefix: '/api' })   // POST /api/account/change-password
 })
 
 // Health check

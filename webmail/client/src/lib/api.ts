@@ -124,6 +124,17 @@ export const dpanelAuth = {
       method: 'POST',
       credentials: 'include',
     }),
+
+  // DPanel-only: self-serve mailbox password change. Verified server-side by
+  // re-probing IMAP with the current password before rewriting Dovecot's
+  // userdb. Throws with a user-friendly message on 4xx; the session cookie
+  // is rotated on success so the user stays logged in with the new password.
+  changeMailPassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>('/account/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+      credentials: 'include',
+    }),
 }
 
 // ─── Emails ───────────────────────────────────────────────────────────────────

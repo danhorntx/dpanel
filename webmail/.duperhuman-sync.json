@@ -9,6 +9,7 @@
     "server/src/lib/session.ts",
     "server/src/lib/dpanel-guard.ts",
     "server/src/routes/dpanel-auth.ts",
+    "server/src/routes/dpanel-account.ts",
     "client/src/components/account/DPanelLogin.tsx",
     "client/src/lib/clientConfig.ts"
   ],
@@ -22,6 +23,7 @@
     "client/src/components/layout/AppLayout.tsx",
     "client/src/components/layout/Sidebar.tsx",
     "client/src/components/layout/TopBar.tsx",
+    "client/src/components/labels/LabelManager.tsx",
     "client/src/lib/api.ts",
     "package.json",
     ".env.example"

@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { hydrateSessionAccount } from '../routes/dpanel-auth.js'
 import type { StoredAccount } from '../services/sync.js'
 
-const PROTECTED_PREFIXES = ['/api/accounts', '/api/emails', '/api/search', '/api/sync']
+const PROTECTED_PREFIXES = ['/api/accounts', '/api/emails', '/api/search', '/api/sync', '/api/account']
 
 // Some routes must remain reachable without a session.
 const ALLOWLIST = new Set<string>([])

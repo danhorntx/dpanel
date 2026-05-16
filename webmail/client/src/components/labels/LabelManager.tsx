@@ -7,6 +7,8 @@ import { useEmailStore } from '@/store/emailStore'
 import { useLabelsStore, defaultLabelInput, emptyRule } from '@/store/labelsStore'
 import { SnippetManager } from '@/components/snippets/SnippetManager'
 import { generateId } from '@/lib/utils'
+import { isDpanelMode } from '@/lib/clientConfig'
+import { dpanelAuth } from '@/lib/api'
 import type { CustomLabel, LabelRule, RuleField, RuleOperator, RuleConjunction } from '@/types/email'
 
 const LABEL_COLORS = ['#8fb3ff', '#64b5a1', '#e0b45d', '#d77b8a', '#8ba3b8', '#a6b36b', '#c08a5a', '#7cb7d8']
@@ -198,7 +200,148 @@ function SettingsPanel() {
           onChange={v => setSetting('emailPreviewTheme', v)}
         />
       </SettingGroup>
+
+      {/* DPanel-mode only: self-serve mailbox password change. Hidden in
+          normal mode (e.g. when running standalone against Gmail OAuth). */}
+      {isDpanelMode() && (
+        <SettingGroup title="Mail account">
+          <ChangeMailPassword />
+        </SettingGroup>
+      )}
     </div>
+  )
+}
+
+// ── Mail password change ────────────────────────────────────────────────────
+// Lives inline in SettingsPanel so the entire Settings UI sits in one file.
+// Calls the duperhuman /api/account/change-password endpoint; the server
+// verifies the current password by re-probing IMAP before rewriting Dovecot.
+function ChangeMailPassword() {
+  const [current,  setCurrent]  = useState('')
+  const [next,     setNext]     = useState('')
+  const [confirm,  setConfirm]  = useState('')
+  const [pending,  setPending]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
+  const [success,  setSuccess]  = useState(false)
+
+  function reset() {
+    setCurrent(''); setNext(''); setConfirm('')
+    setError(null); setSuccess(false)
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null); setSuccess(false)
+    if (next.length < 8)      return setError('New password must be at least 8 characters.')
+    if (next !== confirm)     return setError('New password and confirmation do not match.')
+    if (next === current)     return setError('New password must differ from current.')
+
+    setPending(true)
+    try {
+      await dpanelAuth.changeMailPassword(current, next)
+      setSuccess(true)
+      setCurrent(''); setNext(''); setConfirm('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not change password.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="px-4 py-4 flex flex-col gap-3"
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      <div>
+        <div className="text-sm font-medium text-[var(--text-primary)]">Change mail password</div>
+        <div className="text-xs text-[var(--text-muted)] mt-0.5">
+          Updates the password your IMAP/SMTP/webmail login uses. Requires your current password.
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2">
+        <PasswordInput
+          autoComplete="current-password"
+          placeholder="Current password"
+          value={current}
+          onChange={setCurrent}
+        />
+        <PasswordInput
+          autoComplete="new-password"
+          placeholder="New password (8+ characters)"
+          value={next}
+          onChange={setNext}
+        />
+        <PasswordInput
+          autoComplete="new-password"
+          placeholder="Confirm new password"
+          value={confirm}
+          onChange={setConfirm}
+        />
+      </div>
+
+      {error && (
+        <div
+          className="text-xs px-3 py-2 rounded"
+          style={{ background: 'rgba(224,92,106,0.08)', border: '1px solid rgba(224,92,106,0.3)', color: 'var(--text-primary)' }}
+        >
+          {error}
+        </div>
+      )}
+      {success && (
+        <div
+          className="text-xs px-3 py-2 rounded"
+          style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: 'var(--text-primary)' }}
+        >
+          Password updated. Other devices will need the new password on next sync.
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={pending || !current || !next || !confirm}
+          className="px-3 py-1.5 rounded text-xs font-medium transition-all disabled:opacity-50"
+          style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
+        >
+          {pending ? 'Updating…' : 'Update password'}
+        </button>
+        {(current || next || confirm) && !pending && (
+          <button
+            type="button"
+            onClick={reset}
+            className="px-3 py-1.5 rounded text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </form>
+  )
+}
+
+function PasswordInput({ value, onChange, placeholder, autoComplete }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  autoComplete: string
+}) {
+  return (
+    <input
+      type="password"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      className="w-full px-3 py-2 rounded text-sm transition-all outline-none"
+      style={{
+        background: 'var(--bg-overlay)',
+        border: '1px solid var(--border-subtle)',
+        color: 'var(--text-primary)',
+      }}
+    />
   )
 }
 
