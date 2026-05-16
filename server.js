@@ -79,6 +79,7 @@ app.use('/api', acceptApiKey);
 // ── Protected API routes ──────────────────────────────────────────────────────
 app.use('/api/dashboard',   requireLogin, require('./routes/dashboard'));
 app.use('/api/domains',     requireLogin, require('./routes/domains'));
+app.use('/api/domains',     requireLogin, require('./routes/access'));   // /:domain/access/* — SSH-first key+FTP mgmt
 app.use('/api/dns',         requireLogin, require('./routes/dns'));
 app.use('/api/mail',        requireLogin, require('./routes/mail'));
 app.use('/api/ssl',         requireLogin, require('./routes/ssl'));
@@ -143,6 +144,19 @@ cron.schedule('0 3 * * *', async () => {
     console.log('[cron] certbot renew complete');
   } catch (err) {
     console.error('[cron] certbot renew failed:', err.message);
+  }
+});
+
+// ── SSL retry cron (every 15 min) ─────────────────────────────────────────────
+// Picks up domains in dpanel_domain_settings.ssl_retry_state='pending' and
+// retries any host whose H+1/H+5/H+13/H+25 retry window has come due.
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    const sslretry = require('./lib/sslretry');
+    const r = await sslretry.runDueRetries();
+    if (r.retried > 0) console.log(`[cron] ssl-retry: retried ${r.retried} host(s) across ${r.domains} domain(s)`);
+  } catch (err) {
+    console.error('[cron] ssl-retry failed:', err.message);
   }
 });
 
