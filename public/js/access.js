@@ -110,7 +110,12 @@ window.access = (() => {
   }
 
   function _renderConnection(account, vhost) {
-    const host = location.hostname.replace(/^panel\./, '');
+    // Host = the domain we're managing. Every domain hosted here has an A
+    // record pointing to this VPS, so `ssh <user>@<domain>` is the most
+    // natural connection string for the operator. Falling back to the
+    // current browser hostname (panel.danhorntx.com → danhorntx.com) was
+    // wrong — it showed the wrong domain when managing other tenants.
+    const host = _state.domain;
     const rows = [
       { label: 'Host',     id: 'conn-host',     value: host },
       { label: 'Port',     id: 'conn-port',     value: 22 },
