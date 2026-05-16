@@ -23,43 +23,135 @@ router.get('/', (req, res) => {
 });
 
 // ── POST /api/domains — atomic provisioning via state reconciler ─────────────
-// Body: { domain, docRoot?, setupMailDns? }
-//   setupMailDns=true → also configure mail DNS, autoconfig subdomains, webmail vhost+SSL
+//
+// Two body shapes accepted:
+//
+//   1. SSH-first (new, preferred):
+//      {
+//        domain, adminEmail?,
+//        sshKeys: [{ label, publicKey, source? }],   // ≥1 unless allowFtp+password
+//        allowShell?:  bool   (default false)
+//        allowFtp?:    bool   (default false — opt-in password fallback)
+//        password?:    string  (required if allowFtp)
+//        placeholder?: bool   (write Coming Soon static index.html)
+//        setupMailDns?:bool   (mail stack — same flag as before)
+//      }
+//
+//   2. Legacy (kept for the old modal + integrations):
+//      { domain, docRoot?, setupMailDns? }   — generates a password-only
+//      deploy account via the original reconciler step.
+//
+// The SSH-first shape pre-provisions the deploy user (so the docroot lives
+// inside the user's chroot jail at /home/<user>/public_html) and then runs
+// the reconciler with withSftp=false. If the reconciler fails afterwards
+// we tear the user back down so the caller sees a clean rollback.
 router.post('/', async (req, res) => {
-  const { domain, docRoot, setupMailDns } = req.body;
+  const {
+    domain, docRoot, setupMailDns, adminEmail,
+    sshKeys, allowShell, allowFtp, password, placeholder,
+  } = req.body || {};
   if (!domain) return res.json({ success: false, error: 'Domain name is required.' });
 
-  const spec = {
-    domain,
-    docRoot,
-    withSftp: true,
-    withDns:  true,
-    withSsl:  true,
-    mail:     setupMailDns ? { enabled: true, autoconfig: true, webmail: true } : { enabled: false },
-  };
+  const sshFirst = Array.isArray(sshKeys) && sshKeys.length > 0 || !!allowFtp;
+  let preProvision = null;
+  let resolvedDocRoot = docRoot;
 
   try {
+    if (sshFirst) {
+      const access = require('../lib/access');
+      preProvision = access.provisionDomainUser({
+        domain,
+        sshKeys:    sshKeys || [],
+        allowShell: !!allowShell,
+        allowFtp:   !!allowFtp,
+        password,
+        createdBy:  req.session?.userId,
+      });
+      resolvedDocRoot = preProvision.docRoot;
+    }
+
+    const spec = {
+      domain,
+      docRoot:    resolvedDocRoot,
+      adminEmail,
+      withSftp:   !sshFirst,              // legacy path still uses step 2
+      withDns:    true,
+      withSsl:    true,
+      mail:       setupMailDns ? { enabled: true, autoconfig: true, webmail: true } : { enabled: false },
+    };
+
     const result = await domainState.create(spec);
-    // Backward-compat: clients expect { success, credentials } for success and
-    // { success:false, error } for failure. Also include the new structured
-    // steps array so the upcoming progress UI (ticket 1.4) can render it.
+
     if (!result.success) {
+      // Roll back the SSH-first deploy user we created outside the reconciler.
+      if (preProvision) {
+        try { require('../lib/access').deleteAccount(preProvision.username); } catch (_) {}
+      }
       return res.json({
         success:    false,
         error:      result.error,
         steps:      result.steps,
-        rolledBack: result.rolledBack,
+        rolledBack: [...result.rolledBack, ...(preProvision ? ['ssh-deploy-user'] : [])],
       });
     }
+
+    // Coming Soon placeholder — best-effort, non-fatal.
+    if (placeholder) {
+      try { writePlaceholder(resolvedDocRoot, domain); }
+      catch (err) { result.credentials.placeholderError = err.message; }
+    }
+
+    // Merge SSH-first provisioning detail into credentials.
+    if (preProvision) {
+      result.credentials.username  = preProvision.username;
+      result.credentials.docRoot   = preProvision.docRoot;
+      result.credentials.chrootDir = preProvision.chrootDir;
+      result.credentials.keys      = preProvision.keys;
+      result.credentials.ftpEnabled = !!allowFtp;
+      // The auto-generated SFTP password from the legacy step is NULL in
+      // SSH-first mode — surface this explicitly so the UI shows "key-only".
+      result.credentials.password  = allowFtp ? password : null;
+      result.credentials.authMode  = 'ssh-first';
+    } else {
+      result.credentials.authMode  = 'legacy';
+    }
+
     res.json({
       success:     true,
       credentials: result.credentials,
       steps:       result.steps,
     });
   } catch (err) {
+    if (preProvision) {
+      try { require('../lib/access').deleteAccount(preProvision.username); } catch (_) {}
+    }
     res.json({ success: false, error: err.message });
   }
 });
+
+// Write a minimal Coming Soon page to a freshly-provisioned docroot.
+// The file is intentionally small + self-contained so it survives a future
+// Apache config tweak without depending on shared assets.
+function writePlaceholder(docRoot, domain) {
+  if (!docRoot || !fs.existsSync(docRoot)) return;
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>${domain.replace(/[<>&]/g, '')} — Coming Soon</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{height:100%;margin:0;font-family:system-ui,sans-serif;background:#0f0f17;color:#e4e4e7}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .5rem;letter-spacing:-.02em}
+  p{margin:0;color:#a1a1aa}
+</style></head>
+<body><div class="wrap"><div>
+  <h1>Coming soon</h1>
+  <p>${domain.replace(/[<>&]/g, '')} is being prepared.</p>
+</div></div></body></html>
+`;
+  fs.writeFileSync(path.join(docRoot, 'index.html'), html);
+  try { execSync(`chmod 664 ${docRoot}/index.html`); } catch (_) {}
+}
 
 // ── PUT /api/domains/:domain ──────────────────────────────────────────────────
 router.put('/:domain', (req, res) => {
