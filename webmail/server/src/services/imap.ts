@@ -206,6 +206,24 @@ function fetchRange(imap: Imap, seqRange: string, accountId: string, folder: str
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+/**
+ * IMAP error markers we want to treat as "folder is empty / not provisioned"
+ * rather than as hard failures. Dovecot returns these when the user simply
+ * doesn't have a Spam/Junk/Trash mailbox created — the right behavior is to
+ * skip the folder, not abort the whole sync.
+ *
+ * `code: 'NONEXISTENT'` is the canonical IMAP TRYCREATE response. The
+ * message check covers Dovecot's exact phrasing for older clients that
+ * don't surface the code.
+ */
+function isMissingMailboxError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { code?: string; message?: string }
+  if (e.code === 'NONEXISTENT') return true
+  if (typeof e.message === 'string' && /mailbox doesn'?t exist/i.test(e.message)) return true
+  return false
+}
+
 export async function fetchEmails(
   account: ImapAccount,
   folder = 'INBOX',
@@ -217,7 +235,17 @@ export async function fetchEmails(
 
   return new Promise((resolve, reject) => {
     imap.openBox(folder, true, async (err, box) => {
-      if (err) return reject(err)
+      if (err) {
+        // Missing optional folders (e.g. Spam/Junk not provisioned on the
+        // Dovecot account) should not crash the caller's sync loop. Resolve
+        // empty so background sync + preload can continue to the next
+        // folder. All other openBox errors still reject.
+        if (isMissingMailboxError(err)) {
+          console.warn(`[imap] ${account.id} skipping folder "${folder}": ${(err as Error).message?.trim() || 'not present'}`)
+          return resolve([])
+        }
+        return reject(err)
+      }
       const total = box.messages.total
       if (total === 0) return resolve([])
 

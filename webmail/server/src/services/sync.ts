@@ -179,11 +179,17 @@ export function startBackgroundSync(intervalMs = 30_000) {
       if (backgroundInFlight.has(account.id)) continue
       try {
         backgroundInFlight.add(account.id)
+        // Per-folder try/catch — one folder failing must not abort the rest.
+        // Missing optional folders (Spam/Junk/Trash not provisioned) are
+        // already swallowed inside fetchEmails(); this guards against
+        // transient IMAP issues on individual folders too.
         for (const folder of BACKGROUND_FOLDERS) {
-          await syncFolder(account.id, folder, 50, 0, true)
+          try {
+            await syncFolder(account.id, folder, 50, 0, true)
+          } catch (err) {
+            console.warn(`[bg-sync] ${account.id} folder=${folder}: ${(err as Error).message}`)
+          }
         }
-      } catch (err) {
-        console.error(`Background sync failed for ${account.id}:`, err)
       } finally {
         backgroundInFlight.delete(account.id)
       }

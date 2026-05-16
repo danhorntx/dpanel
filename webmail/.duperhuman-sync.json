@@ -18,6 +18,8 @@
     "server/src/index.ts",
     "server/src/lib/config.ts",
     "server/src/routes/accounts.ts",
+    "server/src/services/imap.ts",
+    "server/src/services/sync.ts",
     "server/package.json",
     "client/src/App.tsx",
     "client/src/components/layout/AppLayout.tsx",
