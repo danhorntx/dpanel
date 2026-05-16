@@ -46,6 +46,10 @@ router.get('/', (req, res) => {
 // the reconciler with withSftp=false. If the reconciler fails afterwards
 // we tear the user back down so the caller sees a clean rollback.
 router.post('/', async (req, res) => {
+  // Creating a new domain is a server-wide action — admin only.
+  if (req.session?.role && req.session.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Admin role required to add domains.' });
+  }
   const {
     domain, docRoot, setupMailDns, adminEmail,
     sshKeys, allowShell, allowFtp, password, placeholder,

@@ -147,16 +147,72 @@ window.domains = (() => {
     fetchLogs(domain, type);
   }
 
-  // ── Setup-complete credentials modal ─────────────────────────────────────────
-  function add() {
-    const name        = document.getElementById('addDomainName').value.trim();
-    const root        = document.getElementById('addDomainRoot').value.trim();
-    const mailDns     = document.getElementById('addDomainMailDns')?.checked || false;
-    if (!name) return toast('error', 'Validation', 'Domain name is required.');
-    _doAdd(name, root, mailDns);
+  // ── Add Domain: pending generated keypair (kept in memory for the
+  //    Setup Complete modal so we can offer the private key download once) ──
+  let _pendingGeneratedKey = null;   // { privateKey, publicKey, fingerprint }
+
+  async function generateAddKeypair() {
+    const btn = document.getElementById('addDomainGenBtn');
+    if (!btn) return;
+    btn.disabled = true; const original = btn.textContent; btn.textContent = 'Generating…';
+    try {
+      // Re-uses the existing legacy /api/ftp/generate-keypair which generates
+      // an ed25519 keypair in tmpfs and returns it — saves a route round-trip.
+      const data = await api.post('/api/ftp/generate-keypair', {});
+      if (!data?.success) throw new Error(data?.error || 'Generation failed');
+      _pendingGeneratedKey = {
+        privateKey:  data.privateKey,
+        publicKey:   data.publicKey,
+        fingerprint: '(computed server-side on submit)',
+      };
+      const ta = document.getElementById('addDomainPublicKey');
+      ta.value = data.publicKey;
+      toast('success', 'Keypair generated', 'Private key will be shown after the domain is created.');
+    } catch (err) {
+      toast('error', 'Failed', err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = original;
+    }
   }
 
-  async function _doAdd(name, root, mailDns) {
+  function add() {
+    const name       = document.getElementById('addDomainName').value.trim();
+    const root       = document.getElementById('addDomainRoot')?.value.trim() || '';
+    const mailDns    = document.getElementById('addDomainMailDns')?.checked || false;
+    const publicKey  = document.getElementById('addDomainPublicKey')?.value.trim() || '';
+    const keyLabel   = document.getElementById('addDomainKeyLabel')?.value.trim() || 'primary';
+    const allowShell = document.getElementById('addDomainAllowShell')?.checked || false;
+    const allowFtp   = document.getElementById('addDomainAllowFtp')?.checked || false;
+    const ftpPw      = document.getElementById('addDomainFtpPassword')?.value || '';
+    const placeholder = document.getElementById('addDomainPlaceholder')?.checked || false;
+
+    if (!name) return toast('error', 'Validation', 'Domain name is required.');
+    if (!publicKey && !allowFtp) {
+      return toast('error', 'Validation', 'Paste a public key or enable FTP password access.');
+    }
+    if (allowFtp && ftpPw.length < 8) {
+      return toast('error', 'Validation', 'FTP password must be at least 8 characters.');
+    }
+
+    const sshKeys = publicKey ? [{
+      label:     keyLabel,
+      publicKey: publicKey,
+      source:    _pendingGeneratedKey && _pendingGeneratedKey.publicKey === publicKey ? 'generated' : 'pasted',
+    }] : [];
+
+    _doAdd({
+      domain:       name,
+      docRoot:      root || undefined,
+      setupMailDns: mailDns,
+      sshKeys,
+      allowShell,
+      allowFtp,
+      password:     allowFtp ? ftpPw : undefined,
+      placeholder,
+    });
+  }
+
+  async function _doAdd(payload) {
     const btn = document.querySelector('#modalAddDomain .btn-primary');
     btn.classList.add('loading'); btn.disabled = true;
     btn.textContent = 'Creating domain…';
@@ -165,23 +221,37 @@ window.domains = (() => {
       if (btn.disabled) btn.textContent = 'Requesting SSL…';
     }, 4000);
 
-    const data = await api.post('/api/domains', { domain: name, docRoot: root, setupMailDns: mailDns });
+    const data = await api.post('/api/domains', payload);
     clearTimeout(sslMsg);
     btn.classList.remove('loading'); btn.disabled = false;
     btn.textContent = 'Create Domain';
 
-    // Whether create succeeded or failed, show the result modal so the user
-    // can see what ran, what was rolled back, and (on failure) why.
     if (data) {
+      // Attach the pre-generated private key (if any) to the response so the
+      // Setup Complete modal can display + offer it for download exactly once.
+      if (data.success && _pendingGeneratedKey && payload.sshKeys?.[0]?.publicKey === _pendingGeneratedKey.publicKey) {
+        data.credentials = data.credentials || {};
+        data.credentials.generatedPrivateKey = _pendingGeneratedKey.privateKey;
+      }
+
       closeModal('modalAddDomain');
-      document.getElementById('addDomainName').value = '';
-      document.getElementById('addDomainRoot').value = '';
-      document.getElementById('addDomainMailDns').checked = false;
+      _resetAddDomainForm();
       load();
-      showResult(name, data);
+      showResult(payload.domain, data);
+      _pendingGeneratedKey = null;
     } else {
       toast('error', 'Failed', 'Network error');
     }
+  }
+
+  function _resetAddDomainForm() {
+    const ids = ['addDomainName', 'addDomainRoot', 'addDomainPublicKey',
+                 'addDomainKeyLabel', 'addDomainFtpPassword'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['addDomainMailDns', 'addDomainAllowShell', 'addDomainAllowFtp', 'addDomainPlaceholder']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
+    const ftpBox = document.getElementById('addDomainFtpPwBox');
+    if (ftpBox) ftpBox.style.display = 'none';
   }
 
   // ── Human labels for reconciler step names ────────────────────────────────
@@ -335,13 +405,54 @@ window.domains = (() => {
       mailDnsEl.style.display = 'none';
     }
 
-    // SFTP credentials (only if account was created)
+    // ── SSH-first: generated private key (one-time display) ───────────────
+    const privSection = document.getElementById('credPrivateKeySection');
+    if (privSection) {
+      if (c.generatedPrivateKey) {
+        document.getElementById('credPrivateKey').value      = c.generatedPrivateKey;
+        document.getElementById('credKeyFingerprint').textContent =
+          c.keys?.[0]?.fingerprint ? `Fingerprint: ${c.keys[0].fingerprint}` : '';
+        privSection.style.display = '';
+        privSection.dataset.domain = domain;
+      } else {
+        privSection.style.display = 'none';
+      }
+    }
+
+    // ── SSH-first: registered key fingerprints ────────────────────────────
+    const keysSection = document.getElementById('credKeysSection');
+    if (keysSection) {
+      if (c.keys && c.keys.length) {
+        const list = document.getElementById('credKeysList');
+        list.innerHTML = c.keys.map(k =>
+          `<li style="padding:6px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm)">
+             <span style="color:var(--accent)">${k.label || 'key'}</span>
+             <span style="color:var(--text-muted)">·</span>
+             <span>${k.keyType}</span>
+             <span style="color:var(--text-muted)"> ${k.fingerprint || ''}</span>
+           </li>`
+        ).join('');
+        keysSection.style.display = '';
+      } else {
+        keysSection.style.display = 'none';
+      }
+    }
+
+    // ── Connection details ────────────────────────────────────────────────
     acctErrEl.style.display = 'none';
     if (c.username) {
       document.getElementById('credHost').textContent     = c.host || '—';
       document.getElementById('credPort').textContent     = c.port || 22;
       document.getElementById('credUsername').textContent = c.username;
-      document.getElementById('credPassword').textContent = c.password;
+      // Password row: hidden in SSH-only mode (c.password === null), shown
+      // when FTP fallback was requested.
+      const pwRow = document.getElementById('credPassword')?.closest('div[style*="background:var(--bg-elevated)"]');
+      if (c.password) {
+        document.getElementById('credPassword').textContent = c.password;
+        if (pwRow) pwRow.style.display = '';
+      } else {
+        if (pwRow) pwRow.style.display = 'none';
+      }
       document.getElementById('credDocRoot').textContent  = c.docRoot || '—';
       credsSection.style.display = '';
     } else {
@@ -362,10 +473,28 @@ window.domains = (() => {
   }
 
   function copyCredField(id) {
-    const val = document.getElementById(id)?.textContent || '';
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = el.value || el.textContent || '';
     navigator.clipboard.writeText(val)
       .then(() => toast('success', 'Copied', ''))
       .catch(() => {});
+  }
+
+  // Download the one-time generated private key as a .pem file. After the
+  // user closes the Setup Complete modal the key is gone — DPanel never
+  // persists private keys.
+  function downloadPrivateKey() {
+    const ta = document.getElementById('credPrivateKey');
+    if (!ta?.value) return toast('error', 'No key', 'Private key already cleared.');
+    const domain = document.getElementById('credPrivateKeySection').dataset.domain || 'dpanel';
+    const blob   = new Blob([ta.value], { type: 'application/x-pem-file' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href = url;
+    a.download = `${domain}_id_ed25519.pem`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function toggle(domain, enable) {
@@ -616,7 +745,8 @@ window.domains = (() => {
   return {
     load, add, toggle, confirmDelete, checkDeleteInput, submitDelete,
     openConfig, saveConfig, openAddModal, updateDnsPreview, showCredentials,
-    copyCredField, closeModal, openModal, openLogs, switchLogsTab,
+    copyCredField, downloadPrivateKey, generateAddKeypair,
+    closeModal, openModal, openLogs, switchLogsTab,
     openRedirects, loadRedirects, addRedirect, deleteRedirect,
     openHealth,
   };

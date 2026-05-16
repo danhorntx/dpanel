@@ -1955,22 +1955,85 @@
         <label>Domain Name</label>
         <input type="text" class="input mono" id="addDomainName" placeholder="example.com or sub.example.com" oninput="window.domains.updateDnsPreview(this.value)">
       </div>
-      <div class="form-group">
-        <label>Document Root <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
-        <input type="text" class="input mono" id="addDomainRoot" placeholder="Auto: /var/www/example.com/public_html">
-        <span class="field-hint">Leave blank to auto-create at /var/www/[domain]/public_html</span>
+
+      <!-- ─── SSH access (the new SSH-first default) ──────────────────────── -->
+      <div style="margin-top:var(--space-5);padding:var(--space-4);background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-md)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+          <div>
+            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-primary)">SSH Access</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">Key-based auth, chrooted SFTP. Required.</div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-xs" onclick="window.domains.generateAddKeypair()" id="addDomainGenBtn">Generate a key for me</button>
+        </div>
+
+        <div class="form-group" style="margin-bottom:var(--space-3)">
+          <label class="label">Public Key</label>
+          <textarea class="input mono" id="addDomainPublicKey" rows="3" style="font-size:0.75rem;resize:vertical" placeholder="ssh-ed25519 AAAA... user@host"></textarea>
+          <span class="field-hint">Paste your existing public key (~/.ssh/id_ed25519.pub) — or generate one above to receive a fresh keypair (private key shown once).</span>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0">
+          <label class="label">Key Label <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="text" class="input" id="addDomainKeyLabel" placeholder="e.g. Dan's MacBook" maxlength="128">
+        </div>
       </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="addDomainCreateDir" checked>
-        <label for="addDomainCreateDir">Create document root directory if it doesn't exist</label>
+
+      <!-- ─── FTP opt-in ──────────────────────────────────────────────────── -->
+      <div style="margin-top:var(--space-4)">
+        <div class="checkbox-row">
+          <input type="checkbox" id="addDomainAllowFtp" onchange="document.getElementById('addDomainFtpPwBox').style.display = this.checked ? '' : 'none'">
+          <label for="addDomainAllowFtp">
+            Also enable FTP password access
+            <span style="color:var(--text-muted);font-weight:400"> — for legacy tools (Filezilla, Dreamweaver). Off by default.</span>
+          </label>
+        </div>
+        <div id="addDomainFtpPwBox" style="display:none;margin-top:var(--space-2);padding-left:24px">
+          <input type="password" class="input" id="addDomainFtpPassword" placeholder="FTP password (8+ chars)" minlength="8" autocomplete="new-password">
+        </div>
       </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="addDomainMailDns">
-        <label for="addDomainMailDns">
-          Configure DNS for mail
-          <span style="color:var(--text-muted);font-weight:400"> — adds MX, SPF, and DMARC records to the DNS zone</span>
-        </label>
+
+      <!-- ─── Shell access opt-in ─────────────────────────────────────────── -->
+      <div style="margin-top:var(--space-2)">
+        <div class="checkbox-row">
+          <input type="checkbox" id="addDomainAllowShell">
+          <label for="addDomainAllowShell">
+            Allow shell (SSH terminal) access
+            <span style="color:var(--text-muted);font-weight:400"> — full /bin/bash, no chroot. Off by default.</span>
+          </label>
+        </div>
       </div>
+
+      <!-- ─── Coming Soon placeholder ─────────────────────────────────────── -->
+      <div style="margin-top:var(--space-2)">
+        <div class="checkbox-row">
+          <input type="checkbox" id="addDomainPlaceholder">
+          <label for="addDomainPlaceholder">
+            Drop a Coming Soon page
+            <span style="color:var(--text-muted);font-weight:400"> — writes a basic index.html so the domain shows something while it's being built.</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- ─── Mail DNS opt-in (unchanged) ─────────────────────────────────── -->
+      <div style="margin-top:var(--space-2)">
+        <div class="checkbox-row">
+          <input type="checkbox" id="addDomainMailDns">
+          <label for="addDomainMailDns">
+            Configure DNS for mail
+            <span style="color:var(--text-muted);font-weight:400"> — adds MX, SPF, and DMARC records to the DNS zone</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- ─── Advanced (collapsed) ────────────────────────────────────────── -->
+      <details style="margin-top:var(--space-4)">
+        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);user-select:none">Advanced</summary>
+        <div class="form-group" style="margin-top:var(--space-3)">
+          <label>Document Root <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="text" class="input mono" id="addDomainRoot" placeholder="Auto: /home/<user>/public_html">
+          <span class="field-hint">Leave blank — DPanel creates a writable docroot inside the user's chroot jail.</span>
+        </div>
+      </details>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="window.domains.closeModal('modalAddDomain')">Cancel</button>
@@ -2413,6 +2476,28 @@
 
       <!-- Account error (shown instead of SFTP section if account creation failed) -->
       <div class="field-error" id="credAccountError" style="display:none;margin-bottom:var(--space-4)"></div>
+
+      <!-- One-time generated private key (only shown when DPanel generated the keypair) -->
+      <div id="credPrivateKeySection" style="display:none;margin-bottom:var(--space-5);padding:var(--space-4);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.35);border-radius:var(--radius-md)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-2)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent-amber, #f59e0b)" stroke-width="1.7"><path d="M8 1.5l6.5 11h-13z"/><path d="M8 6v4M8 11.5v.5"/></svg>
+          <strong style="font-size:0.8125rem;color:var(--accent-amber, #f59e0b)">Private key — shown once</strong>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 var(--space-3) 0">
+          Save this file now. DPanel does not keep a copy. <span id="credKeyFingerprint" style="color:var(--text-muted);font-family:var(--font-mono);font-size:0.7rem"></span>
+        </p>
+        <textarea id="credPrivateKey" class="input mono" rows="6" readonly style="font-size:0.7rem;background:var(--bg-base);resize:vertical"></textarea>
+        <div style="display:flex;gap:8px;margin-top:var(--space-2)">
+          <button class="btn btn-xs btn-primary" onclick="window.domains.downloadPrivateKey()">Download .pem</button>
+          <button class="btn btn-xs btn-ghost" onclick="window.domains.copyCredField('credPrivateKey')">Copy</button>
+        </div>
+      </div>
+
+      <!-- SSH key fingerprints (for SSH-first; no password block) -->
+      <div id="credKeysSection" style="display:none;margin-bottom:var(--space-4)">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-2);text-transform:uppercase;letter-spacing:0.06em">Registered keys</div>
+        <ul id="credKeysList" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:0.75rem;color:var(--text-secondary);font-family:var(--font-mono)"></ul>
+      </div>
 
       <!-- SFTP credentials -->
       <div id="credsSFTPSection">
