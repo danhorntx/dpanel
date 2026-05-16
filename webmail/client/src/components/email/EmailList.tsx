@@ -6,7 +6,30 @@ import { useVirtualList } from '@/hooks/useVirtualList'
 import { EmailRow } from './EmailRow'
 import type { ActiveFolder } from '@/types/email'
 
-const ROW_HEIGHT = 56
+const ROW_HEIGHT_DESKTOP = 56
+const ROW_HEIGHT_MOBILE  = 76
+const MOBILE_MQ = '(max-width: 720px)'
+
+/**
+ * Returns the row height in px for the current viewport. Reactive to media-
+ * query changes so the virtualizer recomputes when the user rotates / resizes
+ * (matters on tablets that straddle the breakpoint). Falls back to desktop on
+ * SSR / first paint where matchMedia isn't available.
+ */
+function useRowHeight(): number {
+  const get = () => (typeof window !== 'undefined' && window.matchMedia(MOBILE_MQ).matches)
+    ? ROW_HEIGHT_MOBILE
+    : ROW_HEIGHT_DESKTOP
+  const [h, setH] = useState<number>(get)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia(MOBILE_MQ)
+    const onChange = () => setH(mq.matches ? ROW_HEIGHT_MOBILE : ROW_HEIGHT_DESKTOP)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return h
+}
 
 // "Dwell" before we auto-mark-as-read. Stops rapid j/k scrolling from burning
 // through unread state.
@@ -75,9 +98,10 @@ export function EmailList() {
   // Reset the "no more" flag when folder changes
   useEffect(() => { setMoreEmpty(false) }, [activeFolder])
 
+  const rowHeight = useRowHeight()
   const { scrollRef, virtualItems, totalSize, scrollToIndex } = useVirtualList({
     count: emails.length,
-    itemHeight: ROW_HEIGHT,
+    itemHeight: rowHeight,
     overscan: 8,
   })
 
@@ -148,7 +172,7 @@ export function EmailList() {
                     id={`email-row-${email.id}`}
                   isFocused={index === focusedIndex}
                   isSelected={email.id === selectedId}
-                  style={{ height: ROW_HEIGHT }}
+                  style={{ height: rowHeight }}
                   onClick={() => {
                     focusIndex(index)
                     selectEmail(email.id)

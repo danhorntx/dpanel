@@ -80,9 +80,17 @@ export function SearchView() {
     allMatches[0] ??
     null
 
-  // Auto-select the first result when search results change so preview shows
+  // Auto-select the first result when search results change so the desktop
+  // preview pane shows something useful.
+  //
+  // On mobile this would IMMEDIATELY swap from the results list to the
+  // single visible thread pane (data-thread-open=true), so the user could
+  // never actually see the list of matches. Skip auto-select on touch
+  // breakpoints — the user picks a result manually.
   useEffect(() => {
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
     if (!loading && allMatches.length > 0) {
+      if (isMobile) return
       const stillValid = allMatches.find(e => e.id === selectedId)
       if (!stillValid) selectEmail(allMatches[0].id)
     } else if (!loading && allMatches.length === 0) {
@@ -129,10 +137,17 @@ export function SearchView() {
       <div className="px-6 py-4 border-b" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}>
         <div className="flex items-center gap-3 mb-3">
           <button
-            onClick={back}
+            onClick={() => {
+              // Mobile context: if a result is open, first back press returns
+              // to the results list (clears selection). Second press
+              // (selection already null) returns to inbox.
+              const isMobile = window.matchMedia('(max-width: 720px)').matches
+              if (isMobile && selectedId) selectEmail(null)
+              else back()
+            }}
             className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"
             style={{ color: 'var(--text-muted)' }}
-            title="Back to inbox (Esc)"
+            title="Back (Esc)"
           >
             <ArrowLeftIcon size={14} />
           </button>

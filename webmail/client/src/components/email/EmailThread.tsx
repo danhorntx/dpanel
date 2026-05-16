@@ -610,7 +610,9 @@ export function EmailThread({ email: overrideEmail }: EmailThreadProps = {}) {
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-[var(--text-secondary)] mb-1">No email selected</p>
-          <p className="text-xs text-[var(--text-muted)]">
+          {/* The kbd-hint wrapper is hidden on mobile via globals.css so the
+              keyboard-shortcut copy doesn't confuse phone users. */}
+          <p className="text-xs text-[var(--text-muted)] kbd-hint">
             Press <kbd>J</kbd> / <kbd>K</kbd> to navigate, <kbd>Space</kbd> to read
           </p>
         </div>

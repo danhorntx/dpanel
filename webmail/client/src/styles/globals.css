@@ -257,6 +257,19 @@ button, input, a, select, textarea,
   transition: background 0.08s ease;
   user-select: none;
 }
+/* On desktop, hide the mobile-date span that lives in the row header. The
+   trailing column's .email-row-date-desktop is what's shown. */
+.email-row-date-mobile { display: none; }
+/* Desktop body: one-line "SUBJECT — snippet preview" via inline flex so the
+   em-dash + snippet appear inline and overflow gets truncated together. */
+.email-row-body {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .email-row:hover { background: var(--bg-hover); }
 .email-row.focused { background: var(--bg-active); }
@@ -534,6 +547,58 @@ button, input, a, select, textarea,
     padding-bottom: 10px;
   }
 
+  /* ── Email row — STACKED layout on phones ────────────────────────────
+     Desktop: avatar | (sender row, subject—snippet row) | date+star col
+     Mobile:  avatar | (sender + date row, subject row, snippet row) | star
+
+     The row height grows from 56 → 76 to accommodate the extra line, the
+     virtualizer in EmailList.tsx is told the new height at mount time via
+     a matchMedia check so scrolling stays accurate.                       */
+  :root {
+    --row-height: 76px;
+  }
+  .email-row {
+    align-items: start;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    grid-template-columns: 40px 1fr;   /* drop the trailing column inline */
+  }
+  /* The trailing column on mobile only contains the star — float it. */
+  .email-row-trailing {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: row;
+    gap: 4px;
+  }
+  /* Desktop date hidden; mobile date in the header row is shown. */
+  .email-row-date-desktop { display: none; }
+  .email-row-date-mobile  { display: inline; }
+  /* Body becomes a vertical stack — subject on top line, snippet below. */
+  .email-row-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    white-space: normal;
+    overflow: visible;
+  }
+  /* Hide the em-dash separator since subject + snippet are on separate lines. */
+  .email-row-dash { display: none; }
+  /* Subject + snippet each get their own truncated single line. */
+  .email-row-subject,
+  .email-row-snippet {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .email-row-snippet { font-size: 12px; }
+  /* Reserve right-side breathing room so the star doesn't crash into text. */
+  .email-row-content { padding-right: 28px; }
+
   /* ── Email body: respect viewport width, allow horizontal scroll only
        inside the prose container (long URLs, code blocks) rather than
        blowing out the whole layout. */
@@ -562,6 +627,50 @@ button, input, a, select, textarea,
 @media (max-width: 720px) {
   .mobile-only     { display: inline-flex !important; }
   .desktop-only    { display: none !important; }
+}
+
+/* ─── Touch-device overrides (Phase 1, mobile audit) ───────────────────────
+   "hover: none" matches devices without a hovering pointer — phones, tablets,
+   most touchscreen laptops. We use this rather than (max-width: 720px) so the
+   same rules also apply to iPad portrait, Surface Pro touch mode, etc.       */
+@media (hover: none) {
+  /* Action buttons that rely on `opacity-0 group-hover:opacity-100` are
+     invisible on touch. Always show them at full opacity. Targets the
+     EmailRow star, EmailThread attachment download/preview, label edit/
+     delete buttons in Sidebar+LabelManager, and similar revealed-on-hover
+     affordances throughout the SPA. */
+  .group .opacity-0,
+  .group:focus-within .opacity-0,
+  [class*="group-hover:opacity-100"] {
+    opacity: 1 !important;
+  }
+}
+
+/* ─── Mobile-specific hardening ────────────────────────────────────────── */
+@media (max-width: 720px) {
+  /* Keyboard-shortcut badges (J/K, R, A, ?, /…) are pure noise on mobile —
+     no keyboard, no useful information. Hide all <kbd> tags + the new
+     .kbd-hint utility (for parent wrappers that include surrounding text). */
+  kbd, .kbd-hint { display: none !important; }
+
+  /* iOS Safari auto-zooms when focusing an input under 16px. Force 16px
+     on every focusable text-entry control to suppress that. Visually it's
+     still small on dense phone screens. */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Tap highlight is the dim flash iOS shows on tap. Looks ugly on dark
+     theme; replace with no-op (we already have :active states elsewhere). */
+  * { -webkit-tap-highlight-color: transparent; }
 }
 
 

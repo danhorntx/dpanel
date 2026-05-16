@@ -18,6 +18,13 @@ interface EmailRowProps {
 /**
  * A single row in the email list. Memoized so it only re-renders when its own
  * email data, focus, or selection state changes — critical for the 200+ row case.
+ *
+ * Layout is shared between desktop and mobile — the same JSX renders both. CSS
+ * (in styles/globals.css, .email-row + .email-row-* classes) flips the row from
+ * the desktop one-line look (`SUBJECT — snippet preview`) to the mobile stacked
+ * look (sender + date on one line, subject below, snippet below that) at
+ * ≤720px. The date span is rendered in two places — the header row (mobile)
+ * and the trailing column (desktop) — and CSS hides whichever isn't current.
  */
 export const EmailRow = memo(function EmailRow({
   email, id, isFocused, isSelected, style, onClick, onStar,
@@ -26,6 +33,8 @@ export const EmailRow = memo(function EmailRow({
   const visibleLabel = email.labels
     .map(labelId => labels.find(label => label.id === labelId))
     .find(Boolean)
+
+  const dateText = formatEmailDate(email.date)
 
   return (
     <div
@@ -43,13 +52,14 @@ export const EmailRow = memo(function EmailRow({
       ].filter(Boolean).join(' ')}
     >
       {/* Avatar */}
-      <div className="flex items-center justify-center">
+      <div className="email-row-avatar flex items-center justify-center">
         <Avatar address={email.from} size="sm" />
       </div>
 
-      {/* Content */}
-      <div className="min-w-0 px-2">
-        <div className="flex items-baseline gap-2 mb-0.5">
+      {/* Content column */}
+      <div className="email-row-content min-w-0 px-2">
+        {/* Header row: sender + optional label + mobile-only date */}
+        <div className="email-row-header flex items-baseline gap-2 mb-0.5">
           {/*
             Keep fontWeight CONSTANT across read/unread to avoid layout shift —
             Geist is loaded as static weights here, so 600 vs 400 changes glyph
@@ -58,7 +68,7 @@ export const EmailRow = memo(function EmailRow({
             (see .email-row.unread::before) and a brighter color.
           */}
           <span
-            className="text-sm truncate"
+            className="email-row-sender text-sm truncate flex-1 min-w-0"
             style={{
               fontWeight: 600,
               color: email.isRead ? 'var(--text-secondary)' : 'var(--text-primary)',
@@ -78,34 +88,47 @@ export const EmailRow = memo(function EmailRow({
               {visibleLabel.name}
             </span>
           )}
-        </div>
-        <p
-          className="text-[13px] truncate leading-none"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          <span style={{
-            color: email.isRead ? 'var(--text-secondary)' : 'var(--text-primary)',
-            fontWeight: 500,           // constant — see comment above
-          }}>
-            {truncate(email.subject, 50)}
+          {/* Mobile date — hidden on desktop via CSS. */}
+          <span
+            className="email-row-date-mobile text-[11px] tabular-nums flex-shrink-0"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {dateText}
           </span>
-          <span className="mx-1 text-[var(--text-disabled)]">—</span>
-          <span className="text-[var(--text-muted)]">{truncate(email.snippet, 80)}</span>
+        </div>
+
+        {/* Body: SUBJECT — snippet (single line on desktop; stacks on mobile) */}
+        <p className="email-row-body text-[13px] leading-tight min-w-0">
+          <span
+            className="email-row-subject truncate"
+            style={{
+              color: email.isRead ? 'var(--text-secondary)' : 'var(--text-primary)',
+              fontWeight: 500,
+            }}
+          >
+            {truncate(email.subject, 60)}
+          </span>
+          <span className="email-row-dash mx-1 text-[var(--text-disabled)]">—</span>
+          <span className="email-row-snippet text-[var(--text-muted)] truncate">
+            {truncate(email.snippet, 80)}
+          </span>
         </p>
       </div>
 
-      {/* Date + star */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0 pl-2">
+      {/* Trailing column — desktop date + star.
+          On mobile the date moves up into the header row and this column
+          collapses to just the star button. */}
+      <div className="email-row-trailing flex flex-col items-end gap-1 flex-shrink-0 pl-2">
         <span
-          className="text-[11px] leading-none tabular-nums"
+          className="email-row-date-desktop text-[11px] leading-none tabular-nums"
           style={{ color: 'var(--text-muted)' }}
         >
-          {formatEmailDate(email.date)}
+          {dateText}
         </span>
         <button
           onClick={onStar}
           aria-label={email.isStarred ? 'Unstar' : 'Star'}
-          className="p-0.5 rounded transition-opacity duration-100 opacity-0 group-hover:opacity-100"
+          className="email-row-star p-0.5 rounded transition-opacity duration-100 opacity-0 group-hover:opacity-100"
           style={{ color: email.isStarred ? 'var(--accent)' : 'var(--text-disabled)' }}
         >
           <StarIcon
@@ -117,7 +140,7 @@ export const EmailRow = memo(function EmailRow({
     </div>
   )
 }, (prev, next) =>
-	  prev.email === next.email &&
+  prev.email === next.email &&
   prev.id === next.id &&
   prev.isFocused === next.isFocused &&
   prev.isSelected === next.isSelected &&

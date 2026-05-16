@@ -1,4 +1,5 @@
-import { MagnifyingGlassIcon, KeyboardIcon, ArrowClockwiseIcon, SignOutIcon, ArrowsClockwiseIcon, ListIcon, ArrowLeftIcon } from '@phosphor-icons/react'
+import { useState, useEffect, useRef } from 'react'
+import { MagnifyingGlassIcon, KeyboardIcon, ArrowClockwiseIcon, SignOutIcon, ArrowsClockwiseIcon, ListIcon, ArrowLeftIcon, DotsThreeVerticalIcon } from '@phosphor-icons/react'
 import { useEmailStore, selectActiveState } from '@/store/emailStore'
 import { useUiStore } from '@/store/uiStore'
 import { useLabelsStore } from '@/store/labelsStore'
@@ -24,6 +25,23 @@ export function TopBar() {
     const id = s.activeAccountId
     return !!id && !!s.accountStates[id]?.selectedId
   })
+
+  // Mobile-only overflow menu (Cache mail / Shortcuts / Switch-to-classic /
+  // Sign out). Sync stays first-class because it's the most-used. Closes on
+  // outside click or after any item runs.
+  const [overflowOpen, setOverflowOpen] = useState(false)
+  const overflowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!overflowOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [overflowOpen])
+  const closeOverflow = () => setOverflowOpen(false)
 
   const folderLabel =
     activeFolder === 'snoozed'
@@ -94,7 +112,7 @@ export function TopBar() {
 	      )}
 
 	      <div className="flex items-center gap-1 ml-auto">
-        {/* Sync button */}
+        {/* Sync — always first-class, both mobile and desktop. */}
         <button
           onClick={() => triggerSync()}
           className="p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
@@ -108,9 +126,12 @@ export function TopBar() {
             className={isLoading ? 'animate-spin' : ''}
           />
 	        </button>
+
+        {/* Desktop-only buttons. The same items live inside the mobile
+            overflow menu below. */}
 	        <button
 	          onClick={() => preloadAllMail(undefined, 'full')}
-	          className="px-2 py-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)] text-[11px]"
+	          className="desktop-only px-2 py-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)] text-[11px]"
 	          style={{ color: 'var(--text-muted)' }}
 		          title="Build local mail cache"
 		          aria-label="Build local mail cache"
@@ -118,10 +139,9 @@ export function TopBar() {
 		          Cache mail
 	        </button>
 
-        {/* Shortcuts */}
         <button
           onClick={openShortcuts}
-          className="p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
+          className="desktop-only p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
           style={{ color: 'var(--text-muted)' }}
           title="Keyboard shortcuts (?)"
           aria-label="Keyboard shortcuts"
@@ -136,7 +156,7 @@ export function TopBar() {
                 document.cookie = `webmail_mode=classic; max-age=${30 * 24 * 60 * 60}; path=/; SameSite=Lax`
                 window.location.reload()
               }}
-              className="p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
+              className="desktop-only p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
               style={{ color: 'var(--text-muted)' }}
               title="Switch to classic webmail"
               aria-label="Switch to classic webmail"
@@ -149,7 +169,7 @@ export function TopBar() {
                 try { await db.delete() } catch { /* idb may already be gone */ }
                 window.location.reload()
               }}
-              className="p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
+              className="desktop-only p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
               style={{ color: 'var(--text-muted)' }}
               title="Sign out"
               aria-label="Sign out"
@@ -158,6 +178,75 @@ export function TopBar() {
             </button>
           </>
         )}
+
+        {/* Mobile overflow menu. Hidden on desktop (`.mobile-only`); on
+            phones it consolidates all the secondary buttons into a single
+            tap target so the top bar isn't a 5-button traffic jam. */}
+        <div className="mobile-only relative" ref={overflowRef} data-no-drag="true">
+          <button
+            onClick={() => setOverflowOpen(o => !o)}
+            className="p-1.5 rounded-lg transition-colors duration-100 hover:bg-[var(--bg-hover)]"
+            style={{ color: 'var(--text-muted)' }}
+            aria-label="More"
+            aria-expanded={overflowOpen}
+            aria-haspopup="menu"
+          >
+            <DotsThreeVerticalIcon size={18} weight="bold" />
+          </button>
+          {overflowOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 mt-1 min-w-[200px] rounded-lg overflow-hidden z-50"
+              style={{
+                background: 'var(--bg-elevated)',
+                border:     '1px solid var(--border-subtle)',
+                boxShadow:  '0 12px 32px rgba(0,0,0,0.5)',
+              }}
+            >
+              <button
+                onClick={() => { preloadAllMail(undefined, 'full'); closeOverflow() }}
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-[var(--bg-hover)]"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                <ArrowClockwiseIcon size={14} weight="regular" />
+                Build local mail cache
+              </button>
+              {isDpanelMode() && (
+                <>
+                  <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                  <button
+                    onClick={() => {
+                      document.cookie = `webmail_mode=classic; max-age=${30 * 24 * 60 * 60}; path=/; SameSite=Lax`
+                      window.location.reload()
+                    }}
+                    role="menuitem"
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-[var(--bg-hover)]"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    <ArrowsClockwiseIcon size={14} weight="regular" />
+                    Switch to classic webmail
+                  </button>
+                  <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                  <button
+                    onClick={async () => {
+                      closeOverflow()
+                      try { await dpanelAuth.logout() } catch { /* ignore */ }
+                      try { await db.delete()       } catch { /* ignore */ }
+                      window.location.reload()
+                    }}
+                    role="menuitem"
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-[var(--bg-hover)]"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    <SignOutIcon size={14} weight="regular" />
+                    Sign out
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   )
