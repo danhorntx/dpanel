@@ -40,25 +40,32 @@ window.access = (() => {
 
   // ── Load + auto-adopt + render ────────────────────────────────────────────
   async function _loadAndRender() {
-    const res = await api.get(`/api/domains/${_state.domain}/access`);
-    if (!res?.success) return _showError(res?.error || 'Failed to load access info.');
+    try {
+      const res = await api.get(`/api/domains/${_state.domain}/access`);
+      if (!res)              return _showError('Network error — could not reach DPanel.');
+      if (!res.success)      return _showError(res.error || 'Failed to load access info.');
+      if (!res.data)         return _showError('Server returned an empty response.');
 
-    // Auto-adopt if no key-managed deploy user exists yet for this domain.
-    if (!res.data.account) {
-      const adopt = await api.post(`/api/domains/${_state.domain}/access/adopt`, { sshKeys: [] });
-      if (!adopt?.success) {
-        if (adopt?.code === 'username-taken' || /reserved|already exists/i.test(adopt?.error || '')) {
-          return _showCollision(adopt.error);
+      // Auto-adopt if no key-managed deploy user exists yet for this domain.
+      if (!res.data.account) {
+        const adopt = await api.post(`/api/domains/${_state.domain}/access/adopt`, { sshKeys: [] });
+        if (!adopt?.success) {
+          if (adopt?.code === 'username-taken' || /reserved|already exists/i.test(adopt?.error || '')) {
+            return _showCollision(adopt.error);
+          }
+          return _showError(adopt?.error || 'Could not initialise deploy user.');
         }
-        return _showError(adopt?.error || 'Could not initialise deploy user.');
+        const res2 = await api.get(`/api/domains/${_state.domain}/access`);
+        if (!res2?.success || !res2.data?.account) return _showError('Adoption succeeded but reload failed.');
+        _state.data = res2.data;
+      } else {
+        _state.data = res.data;
       }
-      const res2 = await api.get(`/api/domains/${_state.domain}/access`);
-      if (!res2?.success || !res2.data.account) return _showError('Adoption succeeded but reload failed.');
-      _state.data = res2.data;
-    } else {
-      _state.data = res.data;
+      _render();
+    } catch (err) {
+      console.error('[access] load failed:', err);
+      _showError(err?.message || 'Unexpected error loading access info.');
     }
-    _render();
   }
 
   function _showError(msg) {
