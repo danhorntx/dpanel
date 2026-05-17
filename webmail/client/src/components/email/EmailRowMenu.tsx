@@ -35,6 +35,7 @@ export function EmailRowMenu() {
   // Snapshot the target email from Dexie when the menu opens. We don't
   // need a live subscription — the actions read the same store/db state.
   const target = useEmailSnapshot(emailId)
+  const selectEmail = useEmailStore(s => s.selectEmail)
 
   // Esc closes the sheet (mostly useful for accessibility / desktop test).
   useEffect(() => {
@@ -101,7 +102,14 @@ export function EmailRowMenu() {
                 archiveEmail(target.id)
                 toastMsg('Archived', { action: { label: 'Undo', fn: () => undoLast() } })
               }}
-              onSnooze={() => openSnooze()}
+              onSnooze={() => {
+                // SnoozeModal targets selectedId / focused — but the user
+                // may have long-pressed a row that isn't selected. Set the
+                // selection to the target before opening so the modal
+                // snoozes the right message.
+                selectEmail(target.id)
+                openSnooze()
+              }}
               onToggleRead={() => markRead(target.id, !target.isRead)}
               onToggleStar={() => starEmail(target.id)}
               onRestore={() => {
