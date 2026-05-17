@@ -2,9 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Duperhuman</title>
+
+    <!-- Icons / branding -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- PWA manifest (Phase 4). One SVG icon source, content-hash safe. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Match browser chrome / iOS status bar to the app's elevated background.
+         theme-color drives Android Chrome's top bar tint; the apple-* meta
+         tags make iOS use Duperhuman's name on the home screen and keep the
+         status bar translucent over our dark theme when launched standalone. -->
+    <meta name="theme-color" content="#161719" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#161719" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Duperhuman" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Duperhuman" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Geist font — closest publicly available match to Superhuman's typography feel -->

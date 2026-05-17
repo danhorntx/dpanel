@@ -14,7 +14,9 @@
     "client/src/components/email/EmailRowMenu.tsx",
     "client/src/hooks/usePullToRefresh.ts",
     "client/src/lib/haptic.ts",
-    "client/src/lib/clientConfig.ts"
+    "client/src/lib/clientConfig.ts",
+    "client/public/manifest.webmanifest",
+    "client/public/sw.js"
   ],
 
   "patched": [
@@ -35,6 +37,8 @@
     "client/src/components/email/EmailThread.tsx",
     "client/src/components/search/SearchView.tsx",
     "client/src/components/ui/Toast.tsx",
+    "client/src/main.tsx",
+    "client/index.html",
     "client/src/store/uiStore.ts",
     "client/src/styles/globals.css",
     "client/src/lib/api.ts",
