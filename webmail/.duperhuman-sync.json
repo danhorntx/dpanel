@@ -11,6 +11,9 @@
     "server/src/routes/dpanel-auth.ts",
     "server/src/routes/dpanel-account.ts",
     "client/src/components/account/DPanelLogin.tsx",
+    "client/src/components/email/EmailRowMenu.tsx",
+    "client/src/hooks/usePullToRefresh.ts",
+    "client/src/lib/haptic.ts",
     "client/src/lib/clientConfig.ts"
   ],
 

@@ -9,6 +9,7 @@ import { SnoozeModal }     from '@/components/overlays/SnoozeModal'
 import { ToastStack }      from '@/components/ui/Toast'
 import { AddAccountModal } from '@/components/account/AddAccountModal'
 import { LabelDialog }     from '@/components/labels/LabelDialog'
+import { EmailRowMenu }    from '@/components/email/EmailRowMenu'
 import { useUiStore }      from '@/store/uiStore'
 import { useEmailStore }   from '@/store/emailStore'
 import { isDpanelMode }    from '@/lib/clientConfig'
@@ -91,6 +92,7 @@ export function AppLayout() {
       <ShortcutsOverlay />
       <SnoozeModal />
       <LabelDialog />
+      <EmailRowMenu />
 	      <ToastStack />
       {keyHint && (
         <div className="key-hint-popover" aria-live="polite">

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { ArrowClockwiseIcon, CaretDownIcon } from '@phosphor-icons/react'
 import { useEmailStore, selectActiveState } from '@/store/emailStore'
 import { useUiStore } from '@/store/uiStore'
 import { useVirtualList } from '@/hooks/useVirtualList'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { EmailRow } from './EmailRow'
 import type { ActiveFolder } from '@/types/email'
 
@@ -89,7 +90,15 @@ export function EmailList() {
   const markRead = useEmailStore(s => s.markRead)
   const focusIndex = useEmailStore(s => s.focusIndex)
   const loadMore  = useEmailStore(s => s.loadMore)
+  const triggerSync = useEmailStore(s => s.triggerSync)
   const [moreEmpty, setMoreEmpty] = useState(false)
+
+  // Pull-to-refresh: touch-only, fires triggerSync() on commit. See
+  // hooks/usePullToRefresh.ts for the gesture logic. The container ref
+  // returned here is merged with useVirtualList's scrollRef below.
+  const pull = usePullToRefresh<HTMLDivElement>({
+    onRefresh: async () => { await triggerSync() },
+  })
 
   const handleLoadMore = async () => {
     const got = await loadMore()
@@ -104,6 +113,14 @@ export function EmailList() {
     itemHeight: rowHeight,
     overscan: 8,
   })
+
+  // Merge useVirtualList's scrollRef + usePullToRefresh's ref onto the
+  // same scroll container so both hooks see the same DOM node. Both are
+  // callback refs, so we just call them in sequence.
+  const setListRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef(node)
+    pull.ref(node)
+  }, [scrollRef, pull.ref])
 
   // Keep focused row visible
   useEffect(() => {
@@ -148,11 +165,47 @@ export function EmailList() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
       <SyncBanner active={isSyncing} />
+
+      {/* Pull-to-refresh indicator. Positioned above the list and revealed
+          as the user drags. Stays parked at the threshold while sync runs. */}
+      {(pull.offset > 0 || pull.refreshing) && (
+        <div
+          aria-hidden="true"
+          className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center justify-center"
+          style={{
+            top: 8,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            background: 'var(--bg-elevated)',
+            border:     '1px solid var(--border-subtle)',
+            color:      'var(--text-secondary)',
+            transform:  `translate(-50%, ${Math.max(0, pull.offset - 36)}px) rotate(${pull.refreshing ? 0 : Math.min(360, (pull.offset / pull.threshold) * 270)}deg)`,
+            opacity:    Math.min(1, pull.offset / 30),
+            transition: pull.offset === 0 ? 'transform 220ms ease, opacity 220ms ease' : 'none',
+            boxShadow:  '0 4px 12px rgba(0,0,0,0.3)',
+          }}
+        >
+          <ArrowClockwiseIcon
+            size={16}
+            weight="regular"
+            className={pull.refreshing ? 'animate-spin' : ''}
+          />
+        </div>
+      )}
+
       <div
-        ref={scrollRef}
+        ref={setListRef}
         className="flex-1 overflow-y-auto overflow-x-hidden"
+        style={{
+          // Translate the list content down with the pull so the user sees
+          // it move. Identity transform when not pulling so we don't slow
+          // down virtualizer scrolling.
+          transform: pull.offset > 0 || pull.refreshing ? `translateY(${pull.offset}px)` : undefined,
+          transition: pull.offset === 0 ? 'transform 220ms ease' : 'none',
+        }}
 	        role="listbox"
 	        aria-label="Email list"
           aria-activedescendant={selectedId ? `email-row-${selectedId}` : undefined}

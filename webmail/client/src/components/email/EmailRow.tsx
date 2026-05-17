@@ -1,9 +1,14 @@
-import { memo } from 'react'
+import { memo, useRef } from 'react'
 import { StarIcon } from '@phosphor-icons/react'
 import { Avatar } from '@/components/ui/Avatar'
 import { useLabelsStore } from '@/store/labelsStore'
+import { useUiStore } from '@/store/uiStore'
 import { formatEmailDate, displayName, truncate } from '@/lib/utils'
+import { tap as hapticTap } from '@/lib/haptic'
 import type { Email } from '@/types/email'
+
+const LONG_PRESS_MS = 500
+const LONG_PRESS_MOVE_TOLERANCE_PX = 8
 
 interface EmailRowProps {
   email: Email
@@ -30,11 +35,62 @@ export const EmailRow = memo(function EmailRow({
   email, id, isFocused, isSelected, style, onClick, onStar,
 }: EmailRowProps) {
   const labels = useLabelsStore(s => s.labels)
+  const openLongPress = useUiStore(s => s.openLongPress)
   const visibleLabel = email.labels
     .map(labelId => labels.find(label => label.id === labelId))
     .find(Boolean)
 
   const dateText = formatEmailDate(email.date)
+
+  // ── Long-press handling (touch only) ────────────────────────────────────
+  // pointerdown starts a timer; pointermove (>8px) or pointerup cancels it.
+  // When the timer fires we set longPressFiredRef so the subsequent click
+  // event (from synthetic mouse compatibility) is swallowed.
+  const longPressTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressStart    = useRef<{ x: number; y: number } | null>(null)
+  const longPressFiredRef = useRef(false)
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    longPressStart.current = null
+  }
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return
+    longPressFiredRef.current = false
+    longPressStart.current    = { x: e.clientX, y: e.clientY }
+    longPressTimer.current    = setTimeout(() => {
+      longPressFiredRef.current = true
+      longPressTimer.current    = null
+      hapticTap()
+      openLongPress(email.id)
+    }, LONG_PRESS_MS)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!longPressStart.current) return
+    const dx = e.clientX - longPressStart.current.x
+    const dy = e.clientY - longPressStart.current.y
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_TOLERANCE_PX * LONG_PRESS_MOVE_TOLERANCE_PX) {
+      cancelLongPress()
+    }
+  }
+
+  const handlePointerUp     = () => { cancelLongPress() }
+  const handlePointerCancel = () => { cancelLongPress() }
+
+  const handleClick = () => {
+    // Suppress the synthetic click that follows a fired long-press so we
+    // don't also open the email in the thread view.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false
+      return
+    }
+    onClick()
+  }
 
   return (
     <div
@@ -43,7 +99,11 @@ export const EmailRow = memo(function EmailRow({
       aria-selected={isSelected}
       tabIndex={isFocused ? 0 : -1}
       style={style}
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       className={[
         'email-row group',
         !email.isRead ? 'unread' : '',

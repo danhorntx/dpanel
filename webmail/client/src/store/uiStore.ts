@@ -69,6 +69,10 @@ interface UiStore {
   // media query so the drawer mode never fires on wide viewports.
   mobileNavOpen: boolean
 
+  // ID of the email whose long-press action sheet is currently open.
+  // Null when no sheet is up. Used by the mobile EmailRow → menu flow.
+  longPressEmailId: string | null
+
   // ─ Top-level view
   view: AppView
   searchQuery: string
@@ -110,6 +114,9 @@ interface UiStore {
   closeMobileNav:  () => void
   toggleMobileNav: () => void
 
+  openLongPress:  (emailId: string) => void
+  closeLongPress: () => void
+
   openSearchView:  (query: string) => void
   openLabelManager:(labelId?: string | null) => void
   openMailView:    () => void
@@ -134,6 +141,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   searchMode: false,
   keyHint: null,
   mobileNavOpen: false,
+  longPressEmailId: null,
 
   view: 'mail',
   searchQuery: '',
@@ -176,6 +184,9 @@ export const useUiStore = create<UiStore>((set, get) => ({
   openMobileNav:   () => set({ mobileNavOpen: true }),
   closeMobileNav:  () => set({ mobileNavOpen: false }),
   toggleMobileNav: () => set(s => ({ mobileNavOpen: !s.mobileNavOpen })),
+
+  openLongPress:  (emailId) => set({ longPressEmailId: emailId }),
+  closeLongPress: ()         => set({ longPressEmailId: null }),
 
   openSearchView:   (query) => set({ view: 'search', searchQuery: query, commandPaletteOpen: false }),
   openLabelManager: (labelId = null) => set({ view: 'label-manager', managingLabelId: labelId, commandPaletteOpen: false }),
