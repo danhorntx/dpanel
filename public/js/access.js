@@ -107,6 +107,62 @@ window.access = (() => {
     _renderToggles(d.account, d.placeholder);
     _renderSsl(d.ssl);
     _renderLegacy(d.legacyAccounts || []);
+    // Matomo fetch is async and independent — fire and render when it
+    // resolves; failures degrade silently to the "not enabled" state.
+    _loadMatomo();
+  }
+
+  // ── Matomo analytics panel ─────────────────────────────────────────────
+  async function _loadMatomo() {
+    const body = document.getElementById('accessMatomoBody');
+    const acts = document.getElementById('accessMatomoActions');
+    if (!body) return; // panel not in DOM (older dashboard.html cached)
+    body.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:8px 0">Checking…</div>';
+    acts.innerHTML = '';
+    try {
+      const res = await api.get(`/api/matomo/domains/${_state.domain}`);
+      if (!res?.success) throw new Error(res?.error || 'lookup failed');
+      _renderMatomo(res.data);
+    } catch (err) {
+      body.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:8px 0">Matomo not reachable: ${_esc(err.message)}</div>`;
+    }
+  }
+
+  function _renderMatomo(d) {
+    const body = document.getElementById('accessMatomoBody');
+    const acts = document.getElementById('accessMatomoActions');
+    if (!d.matomoSiteId) {
+      body.innerHTML = `<div style="font-size:0.8125rem;color:var(--text-muted);padding:var(--space-3);background:var(--bg-base);border:1px dashed var(--border);border-radius:var(--radius-sm);text-align:center">No tracking enabled yet. Click <strong style="color:var(--text-primary)">Enable</strong> to provision a Matomo site for this domain and get a snippet.</div>`;
+      acts.innerHTML = `<button class="btn btn-primary btn-xs" onclick="window.access.enableMatomo(false)">Enable</button><button class="btn btn-ghost btn-xs" onclick="window.access.enableMatomo(true)" title="Enable with ecommerce">+ ecom</button>`;
+      return;
+    }
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:0.75rem;color:var(--text-muted)">Site ID <span style="color:var(--text-primary)">${d.matomoSiteId}</span>. Drop the snippet below before <code>&lt;/head&gt;</code> on every page you want tracked.</div>
+        <textarea id="accessMatomoSnippet" class="input mono" rows="9" readonly style="font-size:0.7rem;background:var(--bg-base);resize:vertical">${_esc(d.snippet)}</textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-xs btn-primary" onclick="window.access.copyField('accessMatomoSnippet')">Copy snippet</button>
+          <a class="btn btn-xs btn-ghost" href="${_esc(d.dashboardUrl)}" target="_blank" rel="noopener">Open dashboard ↗</a>
+        </div>
+      </div>
+    `;
+    acts.innerHTML = `<button class="btn btn-ghost btn-xs" onclick="window.access.disableMatomo()" style="color:var(--text-error, #e05c6a)" title="Remove tracking (also purges analytics for this site)">Remove</button>`;
+  }
+
+  async function enableMatomo(ecommerce) {
+    const body = document.getElementById('accessMatomoBody');
+    body.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:8px 0">Provisioning…</div>';
+    const res = await api.post(`/api/matomo/domains/${_state.domain}`, { ecommerce: !!ecommerce });
+    if (!res?.success) { toast('error', 'Failed', res?.error); return _loadMatomo(); }
+    toast('success', 'Matomo site created', `siteId ${res.data.matomoSiteId}`);
+    _renderMatomo(res.data);
+  }
+  async function disableMatomo() {
+    if (!confirm('Remove Matomo tracking for this domain?\n\nThis purges all collected analytics data for this site and cannot be undone.')) return;
+    const res = await api.del(`/api/matomo/domains/${_state.domain}`);
+    if (!res?.success) return toast('error', 'Failed', res?.error);
+    toast('success', 'Removed', _state.domain);
+    _loadMatomo();
   }
 
   function _renderConnection(account, vhost) {
@@ -359,6 +415,7 @@ window.access = (() => {
     downloadGenKey, dismissGenKey,
     toggleFtp, resetFtp, toggleShell, togglePlaceholder,
     retrySsl, removeLegacy, confirmDeleteUser,
+    enableMatomo, disableMatomo,
     copyField,
   };
 })();

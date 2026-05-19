@@ -1,0 +1,64 @@
+# Matomo self-hosted analytics — runs alongside DPanel on the host VPS.
+#
+# Architecture mirrors dpanel-webmail: containerized service stack listening
+# only on 127.0.0.1, fronted by an Apache vhost (analytics.danhorntx.com.conf)
+# that handles TLS and the public hostname.
+#
+# Operational notes:
+#   - Volumes live in /opt/matomo/{db,app}. Back them up via the cron added
+#     in lib/backup.js. The .env stays out of git and lives at /opt/matomo/.env.
+#   - Hourly archive cron runs inside matomo-app via root's crontab; see
+#     /opt/dpanel/matomo/cron-matomo for the exact line.
+#   - To rebuild the stack: cd /opt/matomo && docker compose pull && docker compose up -d
+#   - Full teardown: docker compose down -v && rm -rf /opt/matomo
+
+services:
+  matomo-db:
+    image: mariadb:11
+    container_name: matomo-db
+    restart: unless-stopped
+    command:
+      - --max-allowed-packet=64MB
+      - --innodb-buffer-pool-size=256M
+    volumes:
+      - ./db:/var/lib/mysql
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MATOMO_DB_ROOT_PW}
+      MARIADB_DATABASE:      matomo
+      MARIADB_USER:          matomo
+      MARIADB_PASSWORD:      ${MATOMO_DB_PW}
+    networks: [matomo]
+
+  matomo-app:
+    image: matomo:5-fpm-alpine
+    container_name: matomo-app
+    restart: unless-stopped
+    depends_on: [matomo-db]
+    volumes:
+      - ./app:/var/www/html
+    environment:
+      MATOMO_DATABASE_HOST:     matomo-db
+      MATOMO_DATABASE_DBNAME:   matomo
+      MATOMO_DATABASE_USERNAME: matomo
+      MATOMO_DATABASE_PASSWORD: ${MATOMO_DB_PW}
+      MATOMO_DATABASE_ADAPTER:  mysql
+      MATOMO_DATABASE_TABLES_PREFIX: matomo_
+      PHP_MEMORY_LIMIT: 512M
+    networks: [matomo]
+
+  matomo-web:
+    image: nginx:alpine
+    container_name: matomo-web
+    restart: unless-stopped
+    depends_on: [matomo-app]
+    # Bind only on loopback. Apache (host) is the public entry point.
+    ports:
+      - "127.0.0.1:8088:80"
+    volumes:
+      - ./app:/var/www/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [matomo]
+
+networks:
+  matomo:
+    driver: bridge

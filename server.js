@@ -80,6 +80,7 @@ app.use('/api', acceptApiKey);
 app.use('/api/dashboard',   requireLogin, require('./routes/dashboard'));
 app.use('/api/domains',     requireLogin, require('./routes/domains'));
 app.use('/api/domains',     requireLogin, require('./routes/access'));   // /:domain/access/* — SSH-first key+FTP mgmt
+app.use('/api/matomo',      requireLogin, require('./routes/matomo'));   // Matomo analytics bridge
 app.use('/api/dns',         requireLogin, require('./routes/dns'));
 app.use('/api/mail',        requireLogin, require('./routes/mail'));
 app.use('/api/ssl',         requireLogin, require('./routes/ssl'));
@@ -144,6 +145,25 @@ cron.schedule('0 3 * * *', async () => {
     console.log('[cron] certbot renew complete');
   } catch (err) {
     console.error('[cron] certbot renew failed:', err.message);
+  }
+});
+
+// ── Matomo analytics DB backup (daily 2:30 AM) ────────────────────────────────
+// Reuses lib/backup.js's backupMatomo() so backups land in the same
+// /opt/dpanel/backups dir as every other DPanel backup. cleanup() then
+// keeps the last N per the same retention rules. The hourly archive
+// command (separate from this — runs core:archive inside the container)
+// is installed via system crontab in scripts/install-matomo-cron.sh.
+cron.schedule('30 2 * * *', async () => {
+  try {
+    const backup = require('./lib/backup');
+    if (!require('fs').existsSync('/opt/matomo/.env')) return;   // matomo not installed
+    const r = await backup.backupMatomo();
+    console.log(`[cron] matomo backup: ${r.file}`);
+    const removed = backup.cleanup(14);   // keep last 14 days
+    if (removed > 0) console.log(`[cron] matomo backup cleanup: removed ${removed} stale backups`);
+  } catch (err) {
+    console.error('[cron] matomo backup failed:', err.message);
   }
 });
 
