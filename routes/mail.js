@@ -6,6 +6,28 @@ const dns        = require('../lib/dns');
 const mailsetup  = require('../lib/mailsetup');
 const router     = express.Router();
 
+// ── POST /api/mail/setup/:domain — full mail provisioning for an existing domain
+// Canonical endpoint for "set up mail after the domain already exists." Runs
+// the complete idempotent mail bundle (DNS + DKIM + autoconfig + webmail +
+// mail/webmail/mta-sts certs + Dovecot SNI + MTA-STS). Same code path as the
+// DNS Manager "Mail DNS" button. Returns the per-step result list.
+router.post('/setup/:domain', async (req, res) => {
+  try {
+    const { sanitizeDomain } = require('../lib/shell');
+    sanitizeDomain(req.params.domain);
+    const domainState = require('../lib/state/domain');
+    const result = await domainState.setupMail(req.params.domain, {
+      adminEmail: req.body?.adminEmail,
+      autoconfig: req.body?.autoconfig,
+      webmail:    req.body?.webmail,
+      withSsl:    req.body?.withSsl,
+    });
+    res.json({ success: result.success, data: result });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 // ── Accounts ──────────────────────────────────────────────────────────────────
 router.get('/accounts', (req, res) => {
   try { res.json({ success: true, data: mail.listAccounts() }); }

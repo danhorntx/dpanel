@@ -93,26 +93,17 @@ router.delete('/zones/:domain/records', (req, res) => {
   }
 });
 
-// ── POST /api/dns/zones/:domain/mail-setup  — auto-configure mail DNS ────────
+// ── POST /api/dns/zones/:domain/mail-setup  — full mail bundle ───────────────
+// Runs the SAME complete mail provisioning the creation checkbox runs (DNS +
+// DKIM + autoconfig + webmail + mail/webmail/mta-sts certs + Dovecot SNI +
+// MTA-STS), via the idempotent reconciler subset. Previously this only did
+// DNS records + webmail, which left domains without DKIM, mail certs, SNI,
+// or MTA-STS. The DNS Manager "Mail DNS" button is wired here.
 router.post('/zones/:domain/mail-setup', async (req, res) => {
   try {
-    const { domain } = req.params;
-    const applied = dns.setupMailDns(domain);
-
-    let webmailResult = null;
-    if (applied) {
-      // Provision webmail.<domain> Apache vhost (proxy → DPanel)
-      apache.createWebmailVhost(domain);
-      // Best-effort SSL for webmail subdomain (may fail if DNS hasn't propagated yet)
-      try {
-        await ssl.autoSSL(`webmail.${domain}`, `admin@${domain}`);
-        webmailResult = { url: `https://webmail.${domain}`, ssl: true };
-      } catch (_) {
-        webmailResult = { url: `http://webmail.${domain}`, ssl: false };
-      }
-    }
-
-    res.json({ success: true, data: { applied, webmail: webmailResult } });
+    const domainState = require('../lib/state/domain');
+    const result = await domainState.setupMail(req.params.domain);
+    res.json({ success: result.success, data: result });
   } catch (err) {
     res.json({ success: false, error: err.message });
   }

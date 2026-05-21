@@ -239,16 +239,26 @@ window.dnsMgr = (() => {
     // Mail Setup button
     $('dnsMailSetupBtn') && $('dnsMailSetupBtn').addEventListener('click', async () => {
       if (!activeZone) return;
-      if (!confirm(`Auto-configure mail DNS for ${activeZone}?\n\nAdds/replaces: mail A, MX, SPF TXT, DMARC TXT.`)) return;
+      if (!confirm(`Set up mail for ${activeZone}?\n\nConfigures DNS (MX, SPF, DMARC, DKIM), autoconfig, webmail, mail/webmail/MTA-STS TLS certs, and Dovecot SNI. Safe to re-run.`)) return;
       $('dnsMailSetupBtn').disabled = true;
+      const original = $('dnsMailSetupBtn').textContent;
+      $('dnsMailSetupBtn').textContent = 'Setting up…';
       try {
-        await apiPost('/api/dns/zones/' + activeZone + '/mail-setup', {});
+        const res = await apiPost('/api/dns/zones/' + activeZone + '/mail-setup', {});
         await loadRecords(activeZone);
-        window.toast && window.toast('success', 'Mail DNS configured', 'MX, SPF, and DMARC records updated');
+        const steps = res?.data?.steps || [];
+        const ok = steps.filter(s => s.status === 'success').length;
+        const failed = steps.filter(s => s.status === 'failed').length;
+        if (failed === 0) {
+          window.toast && window.toast('success', 'Mail configured', `${ok} steps applied for ${activeZone}`);
+        } else {
+          window.toast && window.toast('warning', 'Partial setup', `${failed} step(s) failed — re-run after DNS propagates, or check Mail → Health.`);
+        }
       } catch (err) {
         window.toast ? window.toast('error', 'Error', err.message) : alert(err.message);
       } finally {
         $('dnsMailSetupBtn').disabled = false;
+        $('dnsMailSetupBtn').textContent = original;
       }
     });
 

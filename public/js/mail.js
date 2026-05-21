@@ -25,6 +25,96 @@ window.mail = (() => {
     await loadAccounts();
     const addBtn = document.getElementById('mailAddBtn');
     if (addBtn) addBtn.onclick = () => openModal('modalAddAccount');
+    loadMailSetup();
+  }
+
+  // ── Set up mail for an existing domain ─────────────────────────────────────
+  async function loadMailSetup() {
+    const sel = document.getElementById('mailSetupDomainSelect');
+    const btn = document.getElementById('mailSetupBtn');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Loading…</option>';
+    if (btn) btn.disabled = true;
+    try {
+      const data = await api.get('/api/dns/zones');
+      if (!data?.success || !data.data?.length) {
+        sel.innerHTML = '<option value="">No managed zones found</option>';
+        return;
+      }
+      sel.innerHTML = data.data
+        .map(z => `<option value="${_escapeHtml(z.domain)}">${_escapeHtml(z.domain)}</option>`)
+        .join('');
+      if (btn) btn.disabled = false;
+    } catch (err) {
+      sel.innerHTML = `<option value="">Error: ${_escapeHtml(err.message)}</option>`;
+    }
+  }
+
+  const _MAIL_STEP_LABELS = {
+    'mail-dns':       'DNS records (MX / SPF / DMARC / DKIM)',
+    'mail-account':   'First mailbox',
+    'mail-autoconfig':'Autoconfig (Outlook / Apple Mail / Thunderbird)',
+    'webmail-vhost':  'Webmail vhost',
+    'ssl-webmail':    'TLS cert — webmail',
+    'ssl-mail':       'TLS cert — mail server (IMAP/SMTP)',
+    'dovecot-sni':    'Dovecot per-domain TLS (SNI)',
+    'mta-sts':        'MTA-STS policy',
+    'ssl-mta-sts':    'TLS cert — MTA-STS',
+  };
+  function _stepIcon(status) {
+    switch (status) {
+      case 'success': return { ch: '✓', color: '#4ade80' };
+      case 'skipped': return { ch: '–', color: '#7a86a0' };
+      case 'failed':  return { ch: '✗', color: '#e05c6a' };
+      default:        return { ch: '·', color: '#7a86a0' };
+    }
+  }
+
+  async function runMailSetup() {
+    const sel = document.getElementById('mailSetupDomainSelect');
+    const btn = document.getElementById('mailSetupBtn');
+    const domain = sel?.value;
+    if (!domain) return toast('error', 'Pick a domain', 'Choose a domain first.');
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Setting up…';
+    const resultBox = document.getElementById('mailSetupResult');
+    const stepsUl   = document.getElementById('mailSetupSteps');
+    resultBox.style.display = 'none';
+
+    try {
+      // Mail provisioning includes cert issuance which can take a while; give
+      // it room before the api helper times out.
+      const data = await api.post(`/api/mail/setup/${domain}`, {});
+      if (!data) throw new Error('Network error');
+
+      const steps = data.data?.steps || [];
+      stepsUl.innerHTML = steps.map(s => {
+        const ic = _stepIcon(s.status);
+        const label = _MAIL_STEP_LABELS[s.name] || s.name;
+        const detail = s.error ? ` — ${_escapeHtml(s.error)}`
+                     : s.detail ? ` — ${_escapeHtml(s.detail)}` : '';
+        return `<li style="display:flex;gap:8px;align-items:flex-start">
+          <span style="color:${ic.color};font-weight:700;width:14px;flex-shrink:0">${ic.ch}</span>
+          <span><span style="color:var(--text-primary)">${_escapeHtml(label)}</span><span style="color:var(--text-muted)">${detail}</span></span>
+        </li>`;
+      }).join('');
+      resultBox.style.display = '';
+
+      if (data.success) {
+        toast('success', 'Mail configured', `${domain} — ${steps.filter(s => s.status === 'success').length} steps applied`);
+      } else {
+        toast('warning', 'Partial setup', 'Some steps failed — see the result list. SSL steps often succeed on a re-run once DNS propagates.');
+      }
+      // Refresh DKIM/health views that may now have new data.
+      loadDkim();
+    } catch (err) {
+      toast('error', 'Setup failed', err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
   }
 
   // ── Accounts ─────────────────────────────────────────────────────────────────
@@ -546,6 +636,7 @@ window.mail = (() => {
     generateMailPassword, updatePasswordStrength,
     generateChangePassword, copyChangePassword,
     loadHealth, runHealthProbe,
+    loadMailSetup, runMailSetup,
     openModal, closeModal,
   };
 })();

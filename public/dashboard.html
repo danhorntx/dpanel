@@ -1069,6 +1069,27 @@
         </button>
       </div>
 
+      <!-- ── Set up mail for an existing domain ─────────────────────────────
+           Runs the full mail bundle (DNS + DKIM + autoconfig + webmail +
+           mail/webmail/mta-sts certs + Dovecot SNI + MTA-STS) post-creation,
+           matching the "Configure DNS for mail" checkbox in Add Domain. -->
+      <div class="card-outer" style="padding:var(--space-4);margin-bottom:var(--space-5)">
+        <div style="display:flex;gap:var(--space-3);align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label style="display:block;font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Set up mail for a domain</label>
+            <select id="mailSetupDomainSelect" class="input" style="width:100%"><option value="">Loading…</option></select>
+          </div>
+          <button class="btn btn-primary" id="mailSetupBtn" onclick="window.mail.runMailSetup()" disabled>Set up mail</button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin:var(--space-3) 0 0 0">
+          Configures DNS (MX, SPF, DMARC, DKIM), autoconfig, webmail, mail/webmail/MTA-STS TLS certs, and Dovecot SNI. Safe to re-run — already-done steps are skipped.
+        </p>
+        <div id="mailSetupResult" style="display:none;margin-top:var(--space-4)">
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-2);text-transform:uppercase;letter-spacing:0.06em">Result</div>
+          <ul id="mailSetupSteps" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:0.8125rem"></ul>
+        </div>
+      </div>
+
       <div class="tabs">
         <div class="tab active" data-tab="accounts" onclick="window.mail.switchTab('accounts', this)">Accounts</div>
         <div class="tab" data-tab="forwards" onclick="window.mail.switchTab('forwards', this)">Forwards</div>
@@ -1169,9 +1190,9 @@
               Zone: <span id="dnsActiveZoneLabel" style="color:var(--accent)">—</span>
             </div>
             <div style="display:flex;gap:var(--space-2)">
-              <button class="btn btn-sm btn-ghost" id="dnsMailSetupBtn" disabled title="Auto-configure MX, SPF, DMARC for this zone">
+              <button class="btn btn-sm btn-ghost" id="dnsMailSetupBtn" disabled title="Full mail setup: DNS + DKIM + autoconfig + webmail + TLS certs + Dovecot SNI + MTA-STS">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M1 4.5l7 4.5 7-4.5"/></svg>
-                Mail DNS
+                Set up mail
               </button>
               <button class="btn btn-sm btn-primary" id="dnsAddRecordBtn" disabled>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
@@ -4003,7 +4024,7 @@
 <script src="/js/api.js"></script>
 <script src="/js/dashboard.js"></script>
 <script src="/js/domains.js?v=2026-05-16b"></script>
-<script src="/js/mail.js"></script>
+<script src="/js/mail.js?v=2026-05-21-mailsetup"></script>
 <script src="/js/ssl.js"></script>
 <script src="/js/logs.js"></script>
 <script src="/js/terminal.js"></script>
@@ -4018,7 +4039,7 @@
 <script src="/js/backup.js"></script>
 <script src="/js/firewall.js"></script>
 <script src="/js/users.js"></script>
-<script src="/js/dns.js"></script>
+<script src="/js/dns.js?v=2026-05-21-mailsetup"></script>
 <script src="/js/analytics.js"></script>
 
 <script>
