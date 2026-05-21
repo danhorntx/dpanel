@@ -57,7 +57,8 @@ window.mail = (() => {
     'webmail-vhost':  'Webmail vhost',
     'ssl-webmail':    'TLS cert — webmail',
     'ssl-mail':       'TLS cert — mail server (IMAP/SMTP)',
-    'dovecot-sni':    'Dovecot per-domain TLS (SNI)',
+    'dovecot-sni':    'Dovecot per-domain TLS (SNI) — IMAP/POP 993/995',
+    'postfix-sni':    'Postfix per-domain TLS (SNI) — submission 587/465',
     'mta-sts':        'MTA-STS policy',
     'ssl-mta-sts':    'TLS cert — MTA-STS',
   };
