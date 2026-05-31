@@ -165,26 +165,34 @@ router.post('/:domain/access/ftp/reset', async (req, res) => {
 });
 
 // ── POST /:domain/access/shell ──────────────────────────────────────────────
-// Toggle shell access. Body: { allowShell: bool }. Reuses lib/access.js
-// helpers — we look up the username, move groups, and set the login shell.
+// Toggle shell access. Body: { allowShell: bool }. Uses setAccessGroup
+// to maintain the single-access-group invariant — when enabling shell we
+// move the user OUT of sftp/ftp and INTO shell, not just add shell on top.
+// Disabling shell falls back to sftp (if docroot inside /home) or ftp.
 router.post('/:domain/access/shell', async (req, res) => {
   try {
     const { execSync } = require('child_process');
     const [rows] = await pool.query(
-      'SELECT username FROM dpanel_sftp_accounts WHERE domain = ? LIMIT 1', [req.domain]
+      'SELECT username, doc_root, ftp_enabled FROM dpanel_sftp_accounts WHERE domain = ? LIMIT 1', [req.domain]
     );
     if (!rows.length) return res.json({ success: false, error: 'No deploy user for this domain.' });
-    const username = rows[0].username;
+    const username   = rows[0].username;
+    const docRoot    = rows[0].doc_root || '';
+    const ftpEnabled = !!rows[0].ftp_enabled;
     const allowShell = !!req.body?.allowShell;
+
     execSync(`usermod -s ${allowShell ? '/bin/bash' : '/usr/sbin/nologin'} ${username}`);
-    if (allowShell) {
-      try { execSync(`usermod -aG dpanel-shell ${username}`); } catch (_) {}
-    } else {
-      try { execSync(`gpasswd -d ${username} dpanel-shell`, { stdio: 'pipe' }); } catch (_) {}
-    }
+
+    const chrootable = docRoot.startsWith(`/home/${username}/`);
+    const target = allowShell           ? 'shell'
+                 : ftpEnabled           ? 'ftp'
+                 : chrootable           ? 'sftp'
+                                        : 'ftp';   // legacy docroot — never chroot
+    access.setAccessGroup(username, target);
+
     await pool.query('UPDATE dpanel_sftp_accounts SET allow_shell = ? WHERE domain = ?',
                      [allowShell ? 1 : 0, req.domain]);
-    res.json({ success: true });
+    res.json({ success: true, data: { accessGroup: target } });
   } catch (err) { res.json({ success: false, error: err.message }); }
 });
 
@@ -227,11 +235,13 @@ router.post('/:domain/access/adopt', async (req, res) => {
       return res.json({ success: false, error: `System user "${username}" already exists. Pass a different one via body.username.`, code: 'username-taken' });
     } catch (_) { /* good — username is free */ }
 
-    // Adoption: NOT chrooted (docroot stays at /var/www). User goes into
-    // dpanel-ftp + www-data; password is locked unless FTP is enabled later.
+    // Adoption: NOT chrooted (docroot stays at /var/www). Create the user
+    // in www-data only, then setAccessGroup → 'ftp' (no chroot, SFTP-only
+    // via ForceCommand). Password is locked unless FTP is enabled later.
     const { execSync } = require('child_process');
     access.ensureAccessConfig();
-    execSync(`useradd -d ${docRoot} -s /usr/sbin/nologin -M -G www-data,dpanel-ftp ${username}`);
+    execSync(`useradd -d ${docRoot} -s /usr/sbin/nologin -M -G www-data ${username}`);
+    access.setAccessGroup(username, 'ftp');
     try { execSync(`passwd -l ${username}`, { stdio: 'pipe' }); } catch (_) {}
 
     // Defensive chown of the docroot so the adopted user can read/write.
