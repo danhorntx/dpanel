@@ -2046,6 +2046,31 @@
         </div>
       </div>
 
+      <!-- ─── Analytics opt-in ────────────────────────────────────────────── -->
+      <div style="margin-top:var(--space-2)">
+        <div class="checkbox-row">
+          <input type="checkbox" id="addDomainAnalytics" onchange="document.getElementById('addDomainAnalyticsBox').style.display = this.checked ? '' : 'none'">
+          <label for="addDomainAnalytics">
+            Enable analytics tracking
+            <span style="color:var(--text-muted);font-weight:400"> — provisions the site in Matomo and injects the snippet via Apache (no code edits to the site)</span>
+          </label>
+        </div>
+        <div id="addDomainAnalyticsBox" style="display:none;margin-top:var(--space-2);padding:var(--space-3);background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-md)">
+          <div class="form-group" style="margin-bottom:var(--space-2)">
+            <label class="label">Site owner email <span style="color:var(--text-muted);font-weight:400">(optional — leave blank to skip the branded login)</span></label>
+            <input type="email" class="input" id="addDomainAnalyticsOwnerEmail" placeholder="owner@example.com">
+            <span class="field-hint">If provided: also provisions <span style="color:var(--accent);font-family:var(--font-mono)">matomo.&lt;domain&gt;</span> as a branded login URL with view-only access. Credentials will be shown once.</span>
+          </div>
+          <div class="checkbox-row" style="margin:0">
+            <input type="checkbox" id="addDomainAnalyticsEcommerce">
+            <label for="addDomainAnalyticsEcommerce">
+              Track ecommerce
+              <span style="color:var(--text-muted);font-weight:400"> — enables Matomo's revenue / product / cart reports</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- ─── Advanced (collapsed) ────────────────────────────────────────── -->
       <details style="margin-top:var(--space-4)">
         <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);user-select:none">Advanced</summary>
@@ -2655,6 +2680,41 @@
 
       <!-- Mail DNS status (shown only when checkbox was checked) -->
       <div id="credMailDnsStatus" style="display:none;margin-bottom:var(--space-5)"></div>
+
+      <!-- Analytics — basic siteId + tenant credentials (shown only when analytics was enabled) -->
+      <div id="credAnalyticsSection" style="display:none;margin-bottom:var(--space-5)">
+        <div id="credAnalyticsBadge" style="margin-bottom:var(--space-3)"></div>
+        <div id="credAnalyticsTenant" style="display:none;padding:var(--space-4);background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.35);border-radius:var(--radius-md)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-2)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#6366f1" stroke-width="1.7"><path d="M3 8a5 5 0 0 1 10 0 5 5 0 0 1-10 0z"/><path d="M8 5v3l2 1"/></svg>
+            <strong style="font-size:0.8125rem;color:#6366f1">Site owner login — shown once</strong>
+          </div>
+          <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 var(--space-3) 0">
+            Save these now and forward to the site owner. They can change the password after first login.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border)">
+              <span style="width:80px;font-size:0.75rem;color:var(--text-muted)">URL</span>
+              <span class="mono" id="credAnalyticsUrl" style="flex:1;font-family:var(--font-mono);font-size:0.8125rem;color:var(--accent);word-break:break-all"></span>
+              <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credAnalyticsUrl')">Copy</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border)">
+              <span style="width:80px;font-size:0.75rem;color:var(--text-muted)">Username</span>
+              <span class="mono" id="credAnalyticsUser" style="flex:1;font-family:var(--font-mono);font-size:0.8125rem;color:var(--text-primary)"></span>
+              <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credAnalyticsUser')">Copy</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border)">
+              <span style="width:80px;font-size:0.75rem;color:var(--text-muted)">Password</span>
+              <span class="mono" id="credAnalyticsPass" style="flex:1;font-family:var(--font-mono);font-size:0.8125rem;color:var(--text-primary);word-break:break-all"></span>
+              <button class="btn btn-ghost btn-xs" onclick="window.domains.copyCredField('credAnalyticsPass')">Copy</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border)">
+              <span style="width:80px;font-size:0.75rem;color:var(--text-muted)">Email</span>
+              <span id="credAnalyticsEmail" style="flex:1;font-size:0.8125rem;color:var(--text-secondary)"></span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Account error (shown instead of SFTP section if account creation failed) -->
       <div class="field-error" id="credAccountError" style="display:none;margin-bottom:var(--space-4)"></div>
@@ -4023,7 +4083,7 @@
 <!-- JS modules -->
 <script src="/js/api.js"></script>
 <script src="/js/dashboard.js"></script>
-<script src="/js/domains.js?v=2026-05-16b"></script>
+<script src="/js/domains.js?v=2026-06-17-analytics"></script>
 <script src="/js/mail.js?v=2026-05-21-postfixsni"></script>
 <script src="/js/ssl.js"></script>
 <script src="/js/logs.js"></script>

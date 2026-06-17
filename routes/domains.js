@@ -53,6 +53,7 @@ router.post('/', async (req, res) => {
   const {
     domain, docRoot, setupMailDns, adminEmail,
     sshKeys, allowShell, allowFtp, password, placeholder,
+    analytics,                                          // { enabled, ownerEmail?, ecommerce? }
   } = req.body || {};
   if (!domain) return res.json({ success: false, error: 'Domain name is required.' });
 
@@ -82,6 +83,12 @@ router.post('/', async (req, res) => {
       withDns:    true,
       withSsl:    true,
       mail:       setupMailDns ? { enabled: true, autoconfig: true, webmail: true } : { enabled: false },
+      analytics:  analytics?.enabled ? {
+        enabled:       true,
+        injectSnippet: analytics.injectSnippet !== false,
+        ecommerce:     !!analytics.ecommerce,
+        ownerEmail:    analytics.ownerEmail || undefined,   // branded matomo.<domain> login if provided
+      } : { enabled: false },
     };
 
     const result = await domainState.create(spec);

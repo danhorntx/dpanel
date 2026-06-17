@@ -186,12 +186,21 @@ window.domains = (() => {
     const ftpPw      = document.getElementById('addDomainFtpPassword')?.value || '';
     const placeholder = document.getElementById('addDomainPlaceholder')?.checked || false;
 
+    // Analytics opt-in: enabled checkbox; owner email is optional and only
+    // triggers the branded matomo.<domain> login flow when provided.
+    const analyticsOn      = document.getElementById('addDomainAnalytics')?.checked || false;
+    const analyticsOwner   = document.getElementById('addDomainAnalyticsOwnerEmail')?.value.trim() || '';
+    const analyticsEcom    = document.getElementById('addDomainAnalyticsEcommerce')?.checked || false;
+
     if (!name) return toast('error', 'Validation', 'Domain name is required.');
     if (!publicKey && !allowFtp) {
       return toast('error', 'Validation', 'Paste a public key or enable FTP password access.');
     }
     if (allowFtp && ftpPw.length < 8) {
       return toast('error', 'Validation', 'FTP password must be at least 8 characters.');
+    }
+    if (analyticsOwner && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(analyticsOwner)) {
+      return toast('error', 'Validation', 'Site owner email looks invalid.');
     }
 
     const sshKeys = publicKey ? [{
@@ -209,6 +218,11 @@ window.domains = (() => {
       allowFtp,
       password:     allowFtp ? ftpPw : undefined,
       placeholder,
+      analytics:    analyticsOn ? {
+        enabled:    true,
+        ownerEmail: analyticsOwner || undefined,
+        ecommerce:  analyticsEcom,
+      } : undefined,
     });
   }
 
@@ -246,12 +260,16 @@ window.domains = (() => {
 
   function _resetAddDomainForm() {
     const ids = ['addDomainName', 'addDomainRoot', 'addDomainPublicKey',
-                 'addDomainKeyLabel', 'addDomainFtpPassword'];
+                 'addDomainKeyLabel', 'addDomainFtpPassword',
+                 'addDomainAnalyticsOwnerEmail'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    ['addDomainMailDns', 'addDomainAllowShell', 'addDomainAllowFtp', 'addDomainPlaceholder']
+    ['addDomainMailDns', 'addDomainAllowShell', 'addDomainAllowFtp', 'addDomainPlaceholder',
+     'addDomainAnalytics', 'addDomainAnalyticsEcommerce']
       .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
     const ftpBox = document.getElementById('addDomainFtpPwBox');
     if (ftpBox) ftpBox.style.display = 'none';
+    const anaBox = document.getElementById('addDomainAnalyticsBox');
+    if (anaBox) anaBox.style.display = 'none';
   }
 
   // ── Human labels for reconciler step names ────────────────────────────────
@@ -403,6 +421,41 @@ window.domains = (() => {
       }
     } else {
       mailDnsEl.style.display = 'none';
+    }
+
+    // ── Analytics: siteId badge + (one-time) tenant credentials ───────────
+    const anaSection = document.getElementById('credAnalyticsSection');
+    if (anaSection) {
+      const hasAnalytics = !!c.matomoSiteId || !!c.analytics;
+      if (hasAnalytics) {
+        const badge = document.getElementById('credAnalyticsBadge');
+        if (c.matomoSiteId) {
+          badge.innerHTML = `<span class="badge badge-green"><span class="badge-dot"></span>Analytics tracking — Matomo siteId ${c.matomoSiteId}</span>`;
+        } else {
+          badge.innerHTML = `<span class="badge badge-amber">Analytics partially configured</span>`;
+        }
+        const tenantBox = document.getElementById('credAnalyticsTenant');
+        if (c.analytics && c.analytics.password) {
+          // Fresh credentials — show once. password is null on alreadyExisted.
+          document.getElementById('credAnalyticsUrl').textContent   = c.analytics.url;
+          document.getElementById('credAnalyticsUser').textContent  = c.analytics.login;
+          document.getElementById('credAnalyticsPass').textContent  = c.analytics.password;
+          document.getElementById('credAnalyticsEmail').textContent = c.analytics.email;
+          tenantBox.style.display = '';
+        } else if (c.analytics && c.analytics.alreadyExisted) {
+          // Tenant login was re-confirmed but not regenerated — show URL only.
+          document.getElementById('credAnalyticsUrl').textContent   = c.analytics.url;
+          document.getElementById('credAnalyticsUser').textContent  = c.analytics.login;
+          document.getElementById('credAnalyticsPass').textContent  = '(password unchanged — use existing)';
+          document.getElementById('credAnalyticsEmail').textContent = c.analytics.email;
+          tenantBox.style.display = '';
+        } else {
+          tenantBox.style.display = 'none';
+        }
+        anaSection.style.display = '';
+      } else {
+        anaSection.style.display = 'none';
+      }
     }
 
     // ── SSH-first: generated private key (one-time display) ───────────────

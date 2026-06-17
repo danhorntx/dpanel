@@ -163,6 +163,32 @@ router.post('/domains/:domain', async (req, res) => {
   } catch (err) { res.json({ success: false, error: err.message }); }
 });
 
+// ── POST /setup/:domain ───────────────────────────────────────────────────
+// Run the full analytics bundle on an existing domain. Equivalent of the
+// "Enable analytics" checkbox at creation time, idempotent + re-runnable.
+// Body:
+//   {
+//     ownerEmail?:    string     — provision branded matomo.<domain> login
+//     ecommerce?:     bool
+//     injectSnippet?: bool       — default true; false for sites managed by
+//                                   a WP plugin / template edit
+//   }
+router.post('/setup/:domain', async (req, res) => {
+  try {
+    const { sanitizeDomain } = require('../lib/shell');
+    sanitizeDomain(req.params.domain);
+    const ds = require('../lib/state/domain');
+    const r = await ds.setupAnalytics(req.params.domain, {
+      ownerEmail:    req.body?.ownerEmail,
+      ecommerce:     !!req.body?.ecommerce,
+      injectSnippet: req.body?.injectSnippet !== false,
+    });
+    res.json({ success: r.success, data: r });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 // ── DELETE /domains/:domain ───────────────────────────────────────────────
 router.delete('/domains/:domain', async (req, res) => {
   try {
