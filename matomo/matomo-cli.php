@@ -30,6 +30,7 @@ use Piwik\Application\Environment;
 use Piwik\Access;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\SitesManager\API as SitesManagerAPI;
+use Piwik\Plugins\UsersManager\API as UsersManagerAPI;
 
 $env = new Environment(null);
 $env->init();
@@ -102,6 +103,52 @@ try {
             if (!$idsite) err('Missing idsite');
             $sm->updateSite($idsite, null, null, null, null, null, $patterns);
             out(['idsite' => $idsite, 'excluded_urls' => $patterns]);
+        }
+
+        // ── User management ───────────────────────────────────────────────
+        // Per-site logins for site owners. View-only by default; we never
+        // hand a customer admin/superuser access on the shared install.
+
+        case 'add-user': {
+            $login    = $argv[2] ?? err('Missing login');
+            $password = $argv[3] ?? err('Missing password');
+            $email    = $argv[4] ?? err('Missing email');
+            $um = UsersManagerAPI::getInstance();
+            $um->addUser($login, $password, $email, false /* initialIdSite */, true /* passwordConfirmation bypass */);
+            // Matomo's addUser sometimes leaves an "initial" access row for
+            // idsite=1 (or whatever its placeholder default is) even when we
+            // pass false. Strip every access row so the explicit
+            // grant-site-access call below is the only source of truth.
+            \Piwik\Db::query('DELETE FROM ' . \Piwik\Common::prefixTable('access') . ' WHERE login = ?', [$login]);
+            out(['login' => $login, 'email' => $email]);
+        }
+
+        case 'grant-site-access': {
+            $login  = $argv[2] ?? err('Missing login');
+            $access = $argv[3] ?? 'view';   // 'view' | 'write' | 'admin'
+            $idsite = (int)($argv[4] ?? 0);
+            if (!$idsite) err('Missing idsite');
+            if (!in_array($access, ['view','write','admin'], true)) err("Invalid access: $access");
+            $um = UsersManagerAPI::getInstance();
+            $um->setUserAccess($login, $access, [$idsite]);
+            out(['login' => $login, 'access' => $access, 'idsite' => $idsite]);
+        }
+
+        case 'list-users': {
+            $um = UsersManagerAPI::getInstance();
+            $users = $um->getUsers();
+            out(array_map(fn($u) => [
+                'login' => $u['login'] ?? null,
+                'email' => $u['email'] ?? null,
+                'role'  => ($u['superuser_access'] ?? 0) ? 'superuser' : 'user',
+            ], $users));
+        }
+
+        case 'delete-user': {
+            $login = $argv[2] ?? err('Missing login');
+            $um = UsersManagerAPI::getInstance();
+            $um->deleteUser($login, true /* passwordConfirmation bypass */);
+            out(['login' => $login, 'deleted' => true]);
         }
 
         default:
