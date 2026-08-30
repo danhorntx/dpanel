@@ -1,6 +1,6 @@
 {
   "name": "dpanel",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "DPanel — Self-hosted server control panel",
   "main": "server.js",
   "scripts": {
