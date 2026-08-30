@@ -260,6 +260,7 @@ edit them later and `systemctl restart dpanel`.
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` | MariaDB connection (defaults: 127.0.0.1, 3306, dpanel, generated) |
 | `SESSION_SECRET` | 64-byte hex string used to sign session cookies. Generated; **never commit**. |
 | `DPANEL_SERVER_IP` | Server's public IP. Used in DNS records the panel writes. Defaults to `hostname -I`. |
+| `DPANEL_NS1` / `DPANEL_NS2` | Vanity nameserver pair stamped into every zone's SOA MNAME and NS RRset. Defaults to `ns1`/`ns2.danhorntx.com`. **Must match what the registrar delegates for the zones this host serves** — see the note below. |
 | `IMAP_LOCAL_SERVERNAME` | Fallback hostname used for IMAP TLS when no per-domain cert exists. Defaults to `hostname -f`. |
 | `DPANEL_MAIL_HOSTNAME` | Postfix HELO / `myhostname`. Should resolve to your server's IP and match its PTR. |
 | `PORT` | Panel listening port (default 8080). |
@@ -269,9 +270,27 @@ Optional (only set if you use the corresponding feature):
 | Variable | Purpose |
 |---|---|
 | `DMARC_INBOX_EMAIL` / `DMARC_INBOX_PASSWORD` | Mailbox the DMARC report processor reads from. Daily 4:30am cron. |
+| `REPORTS_FROM` | From address for scheduled analytics report emails. Defaults to `reports@danhorntx.com`. |
+| `PANEL_BASE_URL` | Panel URL used in analytics report email links. Defaults to `https://panel.danhorntx.com`. |
 | `DPANEL_SEED_GMAIL` + `_PASSWORD` | Seed account for deliverability testing (use a Gmail app password). |
 | `DPANEL_SEED_OUTLOOK` + `_PASSWORD` | Same for Outlook (app password required). |
 | `DPANEL_SEED_YAHOO` + `_PASSWORD` | Same for Yahoo. |
+
+### A note on `DPANEL_NS1` / `DPANEL_NS2`
+
+Every zone write re-stamps the apex NS RRset and the SOA MNAME from these values — not just zone
+creation, but any record edit. That is deliberate: a host must advertise its own nameservers. The
+consequence is that changing them and then editing *any* record re-delegates that zone in the child
+NS RRset. If the registrar still delegates elsewhere, resolvers that prefer the child RRset will
+query a host that does not serve the zone and fail intermittently rather than cleanly.
+
+When a write actually changes the pair, DPanel logs it:
+
+```
+[dns] apex NS for example.com re-stamped: ns1.old.com + ns2.old.com -> ns1.new.com + ns2.new.com
+```
+
+Grep `journalctl -u dpanel` or `logs/panel.log` for `dns:ns-restamp` to audit it after the fact.
 
 ---
 

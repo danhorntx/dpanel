@@ -5,6 +5,53 @@ All notable changes to DPanel are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+#### DNS zone round-trip (`lib/dns.js`)
+Every zone mutation rewrites the whole zone file, so any record the parser
+could not represent faithfully was silently altered or dropped on the next
+unrelated edit. Three such cases are fixed:
+
+- **SRV records lost their trailing dot.** `parseZone` stripped it from every
+  non-TXT value, but `renderZone` restored it only for CNAME and MX. An SRV
+  target `sip.example.com.` became `sip.example.com`, which BIND then resolved
+  relative to `$ORIGIN` as `sip.example.com.<zone>`. The record survived its own
+  creation and broke on the next edit to that zone. The trailing dot is now
+  stripped only for the types that get one back; everything else round-trips
+  verbatim.
+- **Subdomain NS delegations were deleted.** `parseZone` skipped *all* NS
+  records as infrastructure, so an operator-added delegation
+  (`sub IN NS ns1.other.net.`) vanished on the next zone write. Only apex NS
+  records are skipped now.
+- **The SOA serial could go backwards.** The `YYYYMMDDNN` scheme has room for
+  99 revisions per day; the 100th produced an 11-digit serial that overflows the
+  uint32 SOA field and could not be read back, so the following write reset to
+  `0` and regressed. `nextSerial` now rolls the date prefix forward, and every
+  path is guarded to return a strictly larger, in-range, 10-digit serial.
+
+### Added
+
+- **`DPANEL_NS1` / `DPANEL_NS2`** — the vanity nameserver pair is no longer
+  hard-coded, so a second host can advertise its own. Defaults are unchanged
+  (`ns1`/`ns2.danhorntx.com`), so existing installs behave exactly as before.
+- **NS re-stamp audit trail.** The apex NS RRset and SOA MNAME are re-stamped on
+  every zone write, so an unrelated record edit can silently re-delegate a zone
+  once this pair changes. That behaviour is intentional but is now logged
+  (`dns:ns-restamp`) with the before and after values.
+- **BIND reload failures are reported.** `reloadBind()` swallowed every error,
+  leaving BIND serving stale data with no signal. It now logs
+  (`dns:reload-failed`) and returns a status. It still does not throw — the zone
+  file on disk is already validated, and rolling back a good write over a
+  transient `rndc` hiccup would be the worse failure.
+
+### Removed
+
+- **`panel.<domain>` A record** is no longer written into new zones. The panel is
+  only served at each host's own hostname, so this stamped a record pointing at
+  an unserved name into every zone (13 dead records cleaned up 2026-08-13).
+
 ## [2.0.0] – 2026-05-11
 
 Major release. New security features, a complete mail deliverability stack,
