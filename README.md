@@ -369,12 +369,11 @@ The repo also ships these helpful docs:
 
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [DECISIONS.md](DECISIONS.md) — architecture decision log
-- [PROD_MIGRATIONS.md](PROD_MIGRATIONS.md) — upgrade checklist for existing installs
 
 For any feature that touches the system layer (Apache, mail, DNS) we generally expect:
 - An idempotent change (safe to apply twice)
 - A rollback path
-- Documentation in `PROD_MIGRATIONS.md` if existing prod data needs migration
+- A documented migration path if existing production data needs to change shape
 
 ---
 

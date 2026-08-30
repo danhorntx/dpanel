@@ -30,14 +30,14 @@ Append-only log of significant decisions. Each entry: date, decision, why, alter
 
 **Tradeoffs accepted:**
 - Mail Health probe becomes load-bearing — without it we're blind. Daily checks for rDNS, RBL listing, MTA-STS, DMARC alignment, test-send verification.
-- IP reputation work is ours: if <server-1-ip> ends up on Spamhaus PBL/SBL (Contabo IPs often do), we either request delisting or request a new IP from Contabo.
+- IP reputation work is ours: if our sending IP ends up on Spamhaus PBL/SBL (Contabo IPs often do), we either request delisting or request a new IP from Contabo.
 - IP warmup discipline: don't blast large volumes from a cold IP.
 
 **Revisit if:** Deliverability remains below ~85% Gmail-inbox after Mail Health + remediation tickets ship and we've exhausted RBL/warmup options. At that point, optional per-domain "Use relay" toggle becomes the escape hatch.
 
 ---
 
-## 2026-05-10 — Staging server at <server-2-ip> (Contabo, Ubuntu 24.04)
+## 2026-05-10 — Second server (Contabo, Ubuntu 24.04)
 
 **Decision:** Dedicated staging VPS, fresh install. Hostname `staging.danhorntx.com`. Panel reachable at `https://<ip>:8080` with self-signed cert (mirrors prod's panel URL pattern). Test domain `danhorntxtest.com` (registered fresh) used as the end-to-end provisioning target.
 

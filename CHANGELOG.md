@@ -186,7 +186,7 @@ comprehensive responsive design, and the refreshed user guide.
 - Run `npm install` after pulling (new deps) and `npm install -g pm2`
   (required for the App Manager).
 - Existing webmail vhosts on production servers need an ACME exemption
-  patch — see `PROD_MIGRATIONS.md`.
+  patch — see the v2.0.0 release notes.
 - Existing database backups created before this release are likely
   empty; check `find /opt/dpanel/backups -name "*_db_*.sql.gz" -size
   -100c` and recreate any matches.

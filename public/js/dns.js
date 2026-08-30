@@ -6,7 +6,7 @@ window.dnsMgr = (() => {
   let zones      = [];
   let activeZone = null;
   let records    = [];
-  let nsInfo     = { ns1: 'ns1.danhorntx.com', ns2: 'ns2.danhorntx.com', serverIp: '<server-1-ip>' };
+  let nsInfo     = { ns1: 'ns1.danhorntx.com', ns2: 'ns2.danhorntx.com', serverIp: '' };
   let initialized = false;
 
   // ── API helpers ────────────────────────────────────────────────────────────
