@@ -9,6 +9,8 @@ logs/
 *.log
 .env
 .DS_Store
+# Nightly Matomo DB dumps written on the server (server-owned; deploys must not touch)
+backups/
 
 # Webmail (vendored duperhuman) build artifacts
 webmail/server/dist/

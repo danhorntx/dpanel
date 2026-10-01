@@ -29,7 +29,12 @@ router.get('/stats', async (req, res) => {
       apache2:      serviceStatus('apache2'),
       postfix:      serviceStatus('postfix'),
       dovecot:      serviceStatus('dovecot'),
-      spamassassin: serviceStatus('spamassassin') || serviceStatus('spamd'),
+      // Spam filter: rspamd where it is installed, SpamAssassin on hosts still
+      // on the older stack. Keyed on the binary, not the unit state, so a
+      // stopped rspamd shows as down instead of falling back to SpamAssassin.
+      ...(fs.existsSync('/usr/bin/rspamd')
+        ? { rspamd: serviceStatus('rspamd') }
+        : { spamassassin: serviceStatus('spamassassin') || serviceStatus('spamd') }),
     };
 
     res.json({
@@ -58,7 +63,7 @@ router.get('/log', (req, res) => {
   }
 });
 
-const ALLOWED_SERVICES = ['apache2', 'postfix', 'dovecot', 'spamassassin', 'spamd', 'dpanel'];
+const ALLOWED_SERVICES = ['apache2', 'postfix', 'dovecot', 'rspamd', 'spamassassin', 'spamd', 'dpanel'];
 
 router.post('/reboot', (req, res) => {
   try {

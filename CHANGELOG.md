@@ -5,6 +5,21 @@ All notable changes to DPanel are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Dashboard shows rspamd as the spam filter where it is installed.** The
+  services card reports `rspamd` on hosts that run it, and keeps reporting
+  SpamAssassin on hosts still on the older stack, so a host that moved to
+  rspamd no longer shows a "stopped" SpamAssassin. rspamd can be restarted
+  from the dashboard.
+
+### Fixed
+- **`backups/` is now gitignored.** The nightly Matomo database dumps are
+  written into `backups/` on the server; listing it in `.gitignore` keeps it
+  in step with the deploy excludes, so an `rsync --delete` deploy no longer
+  removes them.
+
 ## [2.0.1] – 2026-08-29
 
 ### Fixed

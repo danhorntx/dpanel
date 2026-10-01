@@ -59,7 +59,7 @@ window.dashboard = (() => {
       // Services
       const sg = document.getElementById('servicesGrid');
       if (sg) {
-        const svcLabels = { apache2: 'Apache', postfix: 'Postfix', dovecot: 'Dovecot', spamassassin: 'SpamAssassin' };
+        const svcLabels = { apache2: 'Apache', postfix: 'Postfix', dovecot: 'Dovecot', rspamd: 'Rspamd', spamassassin: 'SpamAssassin' };
         sg.innerHTML = Object.entries(d.services).map(([svc, running]) => `
           <div class="card-outer service-card">
             <div class="card-inner">
