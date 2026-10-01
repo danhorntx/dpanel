@@ -15,6 +15,13 @@ and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   from the dashboard.
 
 ### Fixed
+- **Zone validation now matches what BIND enforces.** `validateZone` ran
+  `named-checkzone` with its default check-names mode, which only warns, while
+  BIND rejects such zones when loading a primary. A record BIND would refuse
+  (an MX on a name containing an underscore, for example) passed validation and
+  was written; BIND then failed to load the zone and kept serving the previous
+  copy, so that edit and every later edit to the zone silently never went live.
+  Validation now uses `-k fail`, so the write is rejected up front instead.
 - **`backups/` is now gitignored.** The nightly Matomo database dumps are
   written into `backups/` on the server; listing it in `.gitignore` keeps it
   in step with the deploy excludes, so an `rsync --delete` deploy no longer
