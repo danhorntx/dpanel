@@ -15,6 +15,14 @@ and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   from the dashboard.
 
 ### Fixed
+- **Zones whose own nameservers live inside them can now be created.** On a host
+  whose `DPANEL_NS1`/`DPANEL_NS2` are names inside the zone being created (for
+  example `ns1.example.com` serving `example.com`), `createZone` now adds the
+  nameservers' A records to the zone. Without them `named-checkzone` rejected the
+  zone ("NS has no address records") and provisioning rolled back.
+- **A failed zone creation no longer leaves BIND pointing at a missing file.**
+  `createZone` registered the zone in `named.conf.local` before writing it; if the
+  write failed validation, the registration stayed behind. It is now removed again.
 - **Zone validation now matches what BIND enforces.** `validateZone` ran
   `named-checkzone` with its default check-names mode, which only warns, while
   BIND rejects such zones when loading a primary. A record BIND would refuse
