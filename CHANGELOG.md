@@ -20,6 +20,10 @@ and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   example `ns1.example.com` serving `example.com`), `createZone` now adds the
   nameservers' A records to the zone. Without them `named-checkzone` rejected the
   zone ("NS has no address records") and provisioning rolled back.
+- **Null MX records (`0 .`, RFC 7505) survive later edits.** `parseZone` stripped the
+  trailing dot from every MX value, and a null MX's exchange is only that dot, so it
+  came back as `0`, re-rendered as the invalid `10 0 .`, and every later edit to
+  the zone failed validation.
 - **Removing a zone no longer corrupts `named.conf.local`.** `unregisterZone` matched
   the zone block only up to its first `}`, which is the inner `allow-update { none; }`,
   so it left a stray `};` behind and every later BIND reload failed. Hit by rollbacks
