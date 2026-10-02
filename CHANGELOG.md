@@ -20,6 +20,11 @@ and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   example `ns1.example.com` serving `example.com`), `createZone` now adds the
   nameservers' A records to the zone. Without them `named-checkzone` rejected the
   zone ("NS has no address records") and provisioning rolled back.
+- **Removing a zone no longer corrupts `named.conf.local`.** `unregisterZone` matched
+  the zone block only up to its first `}`, which is the inner `allow-update { none; }`,
+  so it left a stray `};` behind and every later BIND reload failed. Hit by rollbacks
+  of a failed provision. It now removes the whole block, and escapes every dot in
+  the domain rather than only the first.
 - **A failed zone creation no longer leaves BIND pointing at a missing file.**
   `createZone` registered the zone in `named.conf.local` before writing it; if the
   write failed validation, the registration stayed behind. It is now removed again.
