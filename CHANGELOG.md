@@ -15,6 +15,12 @@ and DPanel adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   from the dashboard.
 
 ### Fixed
+- **Forwarding a mailbox while keeping a copy no longer bounces the copy.** A forward
+  on an address that also has a mailbox now lists the address itself as a destination
+  (Postfix delivers it locally rather than expanding it again) instead of an internal
+  `<user>.keep@` shadow address, which Dovecot LMTP rejected as an unknown user on hosts
+  whose userdb is the plain passwd-file. Existing `.keep` forwards still display correctly;
+  the forwards list also no longer shows a stray comma in destinations.
 - **Zones whose own nameservers live inside them can now be created.** On a host
   whose `DPANEL_NS1`/`DPANEL_NS2` are names inside the zone being created (for
   example `ns1.example.com` serving `example.com`), `createZone` now adds the
