@@ -194,8 +194,18 @@ cron.schedule('0 4 * * *', async () => {
     const targets    = zones.map(z => z.domain).filter(d => dkim.hasDkim(d));
     if (!targets.length) return;
     console.log(`[cron] mail-health probing ${targets.length} domain(s)`);
+    const dnsP = require('dns').promises;
     for (const d of targets) {
       try {
+        // A domain whose mail is hosted elsewhere (Google Workspace, Microsoft 365) keeps
+        // a DKIM key here for web forms, but every inbound check would fail by design, so
+        // it would alert daily for nothing. Probe only domains whose MX points at this host.
+        const mx = await dnsP.resolveMx(d).catch(() => []);
+        const ours = await Promise.all(mx.map(m => dnsP.resolve4(m.exchange).catch(() => [])));
+        if (mx.length && !ours.flat().includes(dnsLib.SERVER_IP)) {
+          console.log(`[cron] mail-health skipping ${d}: MX is ${mx.map(m => m.exchange).join(', ')}, hosted elsewhere`);
+          continue;
+        }
         const result = await mailhealth.checkDomain(d);
         await pool.query(
           'INSERT INTO dpanel_mail_health (domain, summary, server_ip, helo_hostname, result_json) VALUES (?, ?, ?, ?, ?)',
